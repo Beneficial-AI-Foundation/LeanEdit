@@ -1,0 +1,524 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=0.82in,headheight=15pt]{geometry}
+\usepackage{mathpazo,microtype}
+\usepackage{amsmath,amssymb,booktabs,longtable,array,enumitem,xcolor,listings}
+\usepackage{fancyhdr,lastpage}
+\usepackage[colorlinks=true,linkcolor=teal!65!black,urlcolor=blue!55!black,
+  bookmarksopen=true,pdfusetitle]{hyperref}
+\hypersetup{pdftitle={An editor written in Lean},pdfauthor={EditorLean project}}
+\definecolor{ink}{HTML}{183546}
+\definecolor{pale}{HTML}{EFF5F7}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{2em}
+\setlist[itemize]{leftmargin=1.4em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=3pt,topsep=3pt}
+\renewcommand{\arraystretch}{1.14}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\key}[1]{\textsf{#1}}
+\newcommand{\note}[1]{\par\smallskip\noindent\colorbox{pale}{\parbox{\dimexpr\linewidth-2\fboxsep}{#1}}\par\smallskip}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{ink}{EditorLean}}
+\fancyhead[R]{\small User guide, tests and verification}
+\fancyfoot[L]{\small 16 November 2026}
+\fancyfoot[R]{\small\thepage\ / \pageref*{LastPage}}
+\renewcommand{\headrulewidth}{0.3pt}
+\setcounter{tocdepth}{2}
+\lstset{basicstyle=\ttfamily\small,columns=fullflexible,keepspaces=true,
+  breaklines=true,frame=single,rulecolor=\color{teal!25},backgroundcolor=\color{pale},
+  xleftmargin=4pt,xrightmargin=4pt,showstringspaces=false,
+  literate={←}{{$\leftarrow$}}1 {→}{{$\to$}}1 {≤}{{$\le$}}1
+    {≠}{{$\ne$}}1 {∧}{{$\land$}}1 {↔}{{$\leftrightarrow$}}1 {¬}{{$\neg$}}1}
+\title{An editor written in Lean}
+\author{EditorLean project}
+\date{16 November 2026}
+\begin{document}
+\thispagestyle{empty}
+{\small\sffamily\color{teal!65!black} PRODUCTIVITY TOOLS\par}
+\vspace{12pt}
+{\LARGE\bfseries\color{ink} An editor written in Lean\par}
+\vspace{7pt}
+{\large User guide, test catalogue and first formal proofs\par}
+\vspace{5pt}
+EditorLean 1.0.4 \quad | \quad Lean 4.35.0-rc3 \quad | \quad 16 November 2026
+\vspace{8pt}\hrule\vspace{8pt}
+\note{\textbf{Current status.} The editor works when started with
+\code{Diagnose EditorLean.command}. Finder activation remains unresolved and is
+outside this document's proof claims. The requested baseline has \textbf{61 test
+assertions}; the current app has three additional startup checks. This work adds
+\textbf{21 universally quantified Lean theorems}, checked against the existing
+editor source.}
+\tableofcontents
+\vfill
+{\small The contents entries and page numbers above are clickable. This PDF is
+compiled from \code{EditorLean.tex}; the proof source and reproducible build commands
+are described in Section~\ref{sec:reproduce}.}
+\clearpage
+
+\section{User guide}\label{sec:guide}
+\subsection{Starting and using the editor}
+EditorLean is a small NEdit-style editor for UTF-8 text files. Its editor logic is
+written in Lean, compiled to C with \code{lean -c}, and then compiled to a native
+Apple-silicon executable with \code{leanc}. Tcl/Tk supplies the desktop widgets
+through a small C bridge. The packaged app does not need Python, Lean or Homebrew
+to be installed in order to run. This build targets macOS 14 or later.
+
+\begin{enumerate}
+\item In Finder, open the project's \code{dist} folder and double-click
+\code{Diagnose EditorLean.command}. Keep the resulting Terminal window open while
+using the editor. It records startup diagnostics in \code{EditorLean-startup.log}.
+\item Choose \key{File > Open} to open a text file, or type in the empty document.
+A leading asterisk in the window title means the text differs from its saved state.
+\item Use \key{File > Save} or \key{Cmd+S}. A new document asks for a filename.
+\key{Save As} chooses a new destination.
+\item Use \key{Search > Find / Replace} for literal, case-sensitive searches.
+The search wraps at the beginning or end of the document.
+\item Quit normally when finished, saving or discarding changes when asked.
+After an app update, quit the old running editor before launching the new build.
+\end{enumerate}
+
+Each document has its own window. The status line shows the cursor's line and
+column, insert/overtype/recording mode, UTF-8 encoding and file path. Split panes
+are two views of the \emph{same} document; edits and undo history are shared.
+
+\subsection{Menu options}
+\begin{longtable}{@{}P{0.15\linewidth}P{0.79\linewidth}@{}}
+\toprule\textbf{Menu} & \textbf{What it does}\\\midrule\endfirsthead
+\toprule\textbf{Menu} & \textbf{What it does}\ (continued)\\\midrule\endhead
+File & New; Open; Open Selected (use selected text as a path); Include File (insert
+another file's text); Save; Save As; Revert; Close; Print; Quit. Revert reloads the
+disk version after confirmation if there are unsaved edits. Print opens a local
+HTML preview in your browser; print there with Cmd+P.\\
+Edit & Undo/Redo; Cut/Copy/Paste; Paste Column; Select All; Shift Left/Right;
+Uppercase/Lowercase; Fill Paragraph. Column paste inserts successive clipboard
+lines at the same column, padding short lines. Case conversion uses the selection,
+or the character at the cursor if there is no selection.\\
+Search & Find/Replace; Find Next/Previous; Find Selection; Incremental Search;
+Go to Line; Set/Go to Mark; Find Matching; Find Definition; Call Tip. Bookmarks
+use names a--z. Matching handles nested bracket pairs and simple quote delimiters;
+it is not a programming-language parser. Definition and Call Tip read a ctags file.\\
+Preferences & Toggle line wrapping or the status line; increase/decrease the font
+size. Wrapping changes the display, not the saved line breaks.\\
+Shell & Execute Command; Filter Selection; Execute Current Line; Cancel.
+Commands run through \code{/bin/sh}. Filter Selection supplies the selected text
+as input. A filter replaces its original selection only if the document still
+matches its pre-command text; otherwise output opens in a new window.\\
+Macro & Learn/Finish records editor actions; Replay repeats the recorded actions;
+Repeat repeats the last action a requested number of times. Cancel stops a replay
+or a running shell command.\\
+Windows & Split Pane; Close Pane; Next Document; Previous Document. Closing a
+pane keeps the document. Closing a document can prompt to save.\\
+Help & Keyboard Shortcuts lists the installed bindings. About reports the app
+and toolchain versions.\\
+\bottomrule
+\end{longtable}
+
+\subsection{Keyboard shortcuts}
+\textbf{Notation.} The application installs both Control and Command aliases for
+its Control bindings. The tables use \key{Cmd} for convenience; use \key{Ctrl}
+if macOS reserves a Command combination. \key{Option} is the key called
+\key{Alt} in the binding list. Some keys, such as Insert and Page Up, require an
+extended keyboard or its equivalent. The Help window lists the complete bindings,
+including control-character insertion and selection variants.
+
+\begin{longtable}{@{}P{0.34\linewidth}P{0.60\linewidth}@{}}
+\toprule\textbf{Keys} & \textbf{Action}\\\midrule\endfirsthead
+\toprule\textbf{Keys} & \textbf{Action}\ (continued)\\\midrule\endhead
+Cmd+N / O / S & New / Open / Save.\\
+Shift+Cmd+S & Save As.\\
+Cmd+W / Q & Close document / Quit application.\\
+Cmd+Y / Option+I & Open Selected / Include File.\\
+Shift+Cmd+E / Cmd+P & Revert / Print via browser preview.\\
+Cmd+Z / Shift+Cmd+Z & Undo / Redo.\\
+Cmd+X / C / V / A & Cut / Copy / Paste / Select All.\\
+Shift+Cmd+V & Paste Column.\\
+Cmd+9 / Cmd+0 & Shift selected lines left / right by four spaces.\\
+Cmd+6 / Shift+Cmd+6 & Uppercase / Lowercase (the shifted binding uses the caret keysym).\\
+Cmd+J & Fill Paragraph to a target width of 80 characters. Long words are not split.\\
+Return / Cmd+Return & Insert newline / Insert newline with the current leading indentation.\\
+Insert & Toggle overtype mode.\\
+Cmd+Backspace & Delete back to a word boundary.\\
+Cmd+U / Cmd+Delete & Delete to line start / line end.\\
+\midrule
+Cmd+F / Cmd+R & Find / Replace dialog.\\
+Cmd+G / Shift+Cmd+G & Next / Previous match.\\
+Cmd+H / Shift+Cmd+H & Find Selection forward / backward.\\
+Cmd+I / Shift+Cmd+I & Incremental search forward / backward.\\
+Cmd+T / Shift+Cmd+T & Replace and find the next / previous occurrence.\\
+Option+T / Shift+Option+T & Replace forward / backward without the additional find step.\\
+Cmd+L / Cmd+E & Go to Line / Go to the selected line or line:column.\\
+Option+M / Option+G & Set / Go to a named mark. Add Shift to Go to Mark to extend selection.\\
+Cmd+M / Shift+Cmd+M & Find matching delimiter / Extend selection to it.\\
+Cmd+D / Cmd+apostrophe & Find Definition / Call Tip using ctags.\\
+\midrule
+Arrows; Home / End & Move; line start / end. Shift extends the selection.\\
+Ctrl+Left / Right & Move by words.\\
+Ctrl+Up / Down & Move toward a paragraph boundary.\\
+Ctrl+Home / End & Document start / end.\\
+Option+Shift+arrows & Extend a rectangular selection.\\
+Ctrl+Space & Set a selection anchor.\\
+Ctrl+Shift+Space & Extend from the anchor; add Option for a rectangle.\\
+Cmd+2 / Cmd+1 & Split / Close Pane.\\
+Cmd+Page Down / Up & Next / Previous document.\\
+Option+Home & Switch to the previously active document.\\
+Cmd+plus / minus & Increase / Decrease font size.\\
+Option+A & Show / Hide status line.\\
+Option+X / Option+R & Execute shell command / Filter Selection.\\
+Ctrl+keypad Enter & Execute Current Line.\\
+Option+K / Cmd+K & Learn/Finish macro / Replay.\\
+Cmd+comma & Repeat Last Action.\\
+Escape / Cmd+period & Cancel current operation.\\
+F1 / F10 & Shortcut help / Open the File menu.\\
+\bottomrule
+\end{longtable}
+
+\subsection{Files, encodings and practical limits}
+Only UTF-8 text is accepted. An initial UTF-8 byte-order mark (BOM) is remembered.
+Line endings are normalized to LF in memory. If the text is edited, saving uses
+the original file's \emph{first detected} newline style. If the text is unchanged,
+the original bytes are reused exactly, including mixed line endings and the
+presence or absence of a final newline.
+
+The editor polls named files for external changes and offers to reload them.
+Saving checks the destination bytes against the expected saved bytes, asks before
+overwriting a conflict, stages the new data beside the destination, then renames
+it over the destination. This is not a lock against another writer: a file can
+change after the comparison and before the rename. Symlink targets and ordinary
+permission bits are covered by integration tests, not by the current proofs.
+
+Find is literal and case-sensitive, not a regular-expression search. Ctags
+addresses support numeric lines and a limited literal-line form. Bookmarks and
+macros are session state. The application is a text editor, not a syntax-aware IDE.
+
+\clearpage
+\section{Unit tests}\label{sec:tests}
+\subsection{Scope and execution}
+The requested \textbf{61 tests} are the 61 successful assertion instances in the
+1.0.3 baseline, generated by one \code{selfTests} routine and its loops. They are
+not 61 separate test functions. IDs below refer to that baseline. Version 1.0.4
+adds three assertions for noninteractive Finder startup, so the current command
+reports \textbf{64 passed}. Those additions are not silently included in the 61.
+
+\begin{lstlisting}
+dist/EditorLean.app/Contents/MacOS/EditorLean --self-test
+\end{lstlisting}
+
+The suite runs compiled Lean and the real Tcl/C bridge, uses temporary files for
+file tests, and launches small controlled shell commands. It does not open GUI
+windows. A separate \code{--gui-self-test} suite exercises real widgets,
+key-event bindings, search, undo, clipboard, split panes, rectangles, macros and
+shell filtering. The GUI suite remains unverified in this restricted session;
+the user has confirmed ordinary operation through the diagnostic launcher.
+
+\subsection{The 61-test catalogue}
+The seven groups contain $2+4+21+9+9+13+3=61$ assertions. The interop group includes
+ID~27; this explains the order around the keyboard cases.
+
+{\fontsize{9.5}{11}\selectfont\renewcommand{\arraystretch}{1.04}
+\begin{longtable}{@{}P{0.09\linewidth}P{0.28\linewidth}P{0.57\linewidth}@{}}
+\toprule\textbf{ID} & \textbf{Case} & \textbf{What is checked}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Case} & \textbf{What is checked}\ (continued)\\\midrule\endhead
+\multicolumn{3}{@{}l}{\textbf{Startup: 2 assertions}}\\*
+1 & Main thread & Native application entry remains on the macOS main thread.\\
+2 & Worker guard & A worker-thread attempt to initialize the GUI is rejected before AppKit is entered.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Tcl/C interoperation: 4 assertions}}\\*
+3 & String round trip & A sample containing Greek, emoji, CJK, punctuation, newlines and embedded NUL survives a Tcl variable round trip.\\
+4 & List quoting & An array containing empty, complex, spaced and newline strings survives Tcl list construction and parsing.\\
+5 & Callback arguments & A Tcl command invokes exported Lean code with the original argument array intact.\\
+27 & Error propagation & An unknown Tcl command becomes an IO error across the C bridge.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Keyboard handling: 21 assertions}}\\*
+6--21 & Literal insertion & One assertion for each input: l, a, 1, space, double quote, apostrophe, left/right brace, left/right bracket, dollar sign, semicolon, backslash, Greek alpha, emoji, and the text \code{[set injected 1]}. Each is delivered literally to the Lean callback; the handler returns Tcl's break code to prevent duplicate default insertion.\\
+22--25 & Ignored events & Four cases produce no insertion and a normal return: empty text with state 0, and x with modifier states 4, 8 and 12.\\
+26 & No evaluation & The command-like text from ID~21 did not create the Tcl variable \code{injected}.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Pure editing helpers: 9 assertions}}\\*
+28 & Nested forward match & The opening parenthesis in \code{a(b(c)d)e} matches offset 7.\\
+29 & Nested backward match & The closing parenthesis at offset 7 matches offset 1.\\
+30 & Unmatched delimiter & An unmatched opening parenthesis returns no match.\\
+31 & Quotes & The first quote in a quoted sample matches the closing quote.\\
+32 & Word boundaries & Forward and backward navigation on an ASCII two-word sample gives the expected offsets.\\
+33 & Unicode boundaries & Greek and CJK text yields the expected word offsets. Classification calls Tcl's Unicode character predicate.\\
+34 & Indentation & Adding two spaces indents both lines, retaining existing indentation.\\
+35 & Unindentation & Removing four spaces handles an indented line, a leading tab and a line with fewer than four spaces.\\
+36 & Paragraph fill & Extra spaces and a line break collapse into one indented paragraph.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Encoding: 9 assertions}}\\*
+37 & Unchanged plain text & Plain text without a final newline retains its exact bytes.\\
+38 & Unchanged LF & A trailing LF is preserved exactly.\\
+39 & Unchanged CRLF & CRLF bytes survive an unchanged decode/encode round trip.\\
+40 & Unchanged CR & A CR-only newline survives the round trip.\\
+41 & Unchanged BOM/Unicode & BOM, Greek letters and CRLF bytes are all preserved.\\
+42 & Unchanged mixed endings & A file mixing CRLF, LF and CR retains every original byte.\\
+43 & Unchanged empty file & The empty byte sequence stays empty.\\
+44 & Edited BOM/CRLF & Replacing the text preserves the BOM and emits CRLF newlines.\\
+45 & Invalid UTF-8 & Bytes FF FE are rejected instead of being decoded as text.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{File integration: 13 assertions}}\\*
+46 & Open normalization & A temporary CRLF file opens with LF in the buffer.\\
+47 & Save format & Saving edited text writes the remembered CRLF format. This checks resulting bytes, not crash-atomicity under every failure.\\
+48 & External conflict & A save after an external edit raises a conflict.\\
+49 & Preserve external edit & The rejected save leaves the externally written bytes in place.\\
+50 & Explicit overwrite & An explicitly authorized overwrite writes the requested text.\\
+51 & Deleted destination & Deleting a previously saved destination causes an unforced save to fail.\\
+52 & New document & Opening a nonexistent path produces empty text with no original bytes.\\
+53 & Save As collision & Saving an unrelated new document over an existing file is blocked without overwrite authorization.\\
+54 & Invalid destination & A write into an invalid path fails.\\
+55 & Failed-write preservation & The earlier file still contains its original data after that failed write.\\
+56 & Symlink target & Saving through a symlink updates the resolved target.\\
+57 & Symlink retained & The symlink remains a symlink after the save.\\
+58 & Permissions & Mode 0640 survives a save.\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{Asynchronous shell integration: 3 assertions}}\\*
+59 & Concurrent pipe I/O & A command echoes 200,000 input characters, emits stderr and exits successfully without a pipe deadlock.\\
+60 & Cancellation & Cancelling a controlled sleep job completes the task after process-group termination. This is not an exhaustive test of every possible descendant process.\\
+61 & Failure status & A controlled failing command returns exit code 7 and the expected stderr.\\
+\bottomrule
+\end{longtable}}
+
+\note{\textbf{What passing means.} These examples exercise the real executable and
+catch regressions. They do not establish a result for every file, every Unicode
+string, every schedule or every possible filesystem failure. The three additional
+startup assertions check the native startup marker, noninteractive mode and empty
+Tcl command-line arguments; they do not prove that Finder launches successfully.}
+
+\clearpage
+\section{Formal verification}\label{sec:formal}
+\subsection{From examples to universal specifications}
+A useful specification quantifies over \emph{all inputs in a stated domain} and
+makes its preconditions explicit. For example, an unchanged document with original
+bytes should encode to those exact bytes, regardless of their size or line endings.
+That is stronger than seven selected examples. Conversely, ``every shell command
+finishes'' is false: some commands deliberately never terminate.
+
+There are three distinct scopes in this document:
+\begin{itemize}
+\item \textbf{Actual implementation:} theorems refer to functions imported directly
+from \code{EditorLean.lean}, such as \code{encodeDocument} and \code{charSlice}.
+\item \textbf{Connected save-policy abstraction:} \code{checkedSave} names the
+existing post-read save body. A checked definitional equality connects it to the
+actual \code{saveDocument}; it is not an unrelated idealized algorithm.
+\item \textbf{Proposed future specifications:} GUI, Tcl semantics, system calls and
+process scheduling require models or explicit interface assumptions. No such
+assumptions have been disguised as completed application proofs here.
+\end{itemize}
+
+\subsection{Priority ranking}\label{sec:ranking}
+Priority balances the value of preventing data loss against expected proof effort.
+Ease estimates concern proving meaningful behavior of this implementation, not
+merely writing an attractive specification. Baseline IDs are from
+Section~\ref{sec:tests}; related properties may overlap.
+
+{\small
+\begin{longtable}{@{}P{0.05\linewidth}P{0.28\linewidth}P{0.16\linewidth}P{0.43\linewidth}@{}}
+\toprule\textbf{Rank} & \textbf{Property / baseline IDs} & \textbf{Value; ease} & \textbf{Status and scope}\\\midrule\endfirsthead
+\toprule\textbf{Rank} & \textbf{Property / baseline IDs} & \textbf{Value; ease} & \textbf{Status and scope}\ (continued)\\\midrule\endhead
+1 & Unchanged bytes, 37--43 & Very high; easy & \textbf{Proved.} Any original byte array is returned unchanged when encoding the saved text. This is an encoder theorem, not yet a full decoder/encoder round-trip theorem.\\
+2 & Save conflicts, 48--51, 53 & Very high; easy--moderate & \textbf{Proved decision and rejection branch.} Any mismatch is rejected unless overwrite is explicit; existing Save As targets and deleted files are covered. Disk behavior and concurrent changes remain outside the proof.\\
+3 & BOM and edited output, 44 & High; easy--moderate & \textbf{Proved.} Edited BOM documents have prefix EF BB BF and the specified encoded body. The complete semantics of newline replacement are not proved.\\
+4 & Decoder checks / new document, 45, 46, 52 & High; moderate & \textbf{Partly proved.} The UTF-8 primitive rejects every invalid byte array; valid strings round-trip through UTF-8; the absent-file decoder case is empty. BOM removal and newline normalization in the full decoder remain open.\\
+5 & Indent/unindent, 34--35 & Medium; moderate & Candidate: positive indentation followed by matching unindentation restores all lines. Must state tab behavior and exclude or define zero-width behavior. Not proved.\\
+6 & Navigation and matching, 28--33 & High; moderate--hard & Candidates: returned offsets stay in bounds; word loops terminate and move in the requested direction; bracket matches obey nesting. Requires loop invariants and a Unicode-classification contract. Only auxiliary slicing bounds are proved.\\
+7 & Literal typing, 6--26 & High; hard & Candidate: arbitrary text is passed as data, never evaluated as Tcl, and inserted once. Needs a model of Tk event substitution, the Tcl procedure and the callback boundary. Current protection is tested, not formally proved.\\
+8 & Paragraph fill, 36 & Medium; moderate--hard & Candidate: preserve word order and paragraph structure. A blanket 80-character bound is false for long words or indentation; a useful width theorem needs explicit preconditions. Not proved.\\
+9 & File operations, 47, 54--58; disk part of 49--51 & Very high; hard & Candidates: failed staging never truncates the destination; rename behavior, symlinks and permissions satisfy contracts. Requires filesystem/system-call semantics and concurrency assumptions. Integration tests only.\\
+10 & Tcl transport, 3--5, 27 & High; hard & Candidates: all well-formed strings and lists survive the ABI with their lengths, NULs and errors intact. Requires C/Lean representation and Tcl contracts. Integration tests only.\\
+11 & Threading, 1--2 & Medium; hard & Candidate: all GUI operations execute on the OS main thread, not just initialization. Requires a model of the native launcher and event dispatch. Runtime guards and tests only.\\
+12 & Shell jobs, 59--61 & Medium; very hard & Candidates: faithfully report finite output/exit status; eventual completion under termination and scheduling assumptions; cancellation reaches the intended group. These are temporal/OS properties, not pure Lean function equalities.\\
+\bottomrule
+\end{longtable}}
+
+\subsection{Proofs obtained}\label{sec:proved}
+The proof file \code{editor_lean/EditorLeanProofs.lean} imports the real application
+module. It contains \textbf{21 public universal theorems}: two preservation
+results, eight save-policy/body results, four edited-encoding results, three
+decoder-primitive/empty-document results and four slicing results. One additional
+private lemma establishes lawful byte-array equality for the save proofs.
+
+\subsubsection*{1. Exact byte preservation}
+\begin{lstlisting}
+theorem unchanged_bytes (doc : Document) (raw : ByteArray)
+    (h : doc.original = some raw) :
+    encodeDocument doc doc.text = raw := by
+  simp [encodeDocument, h]
+\end{lstlisting}
+This quantifies over \emph{every} document and byte array satisfying the stated
+original-bytes condition. No UTF-8 validity assumption is needed for this encoder
+branch: it reuses the original bytes. The second theorem,
+\code{unchanged_without_original}, proves that the unchanged branch uses the text's
+UTF-8 encoding when no original bytes exist. Neither theorem independently proves
+that the decoder populated the document record correctly.
+
+\subsubsection*{2. Save-policy correctness and a write-free rejection branch}
+Let $E$ be the expected bytes: the saved original bytes when the canonical target
+path equals the document path, and ``absent'' otherwise. The checked equivalence is
+\[
+  \text{conflict} = \text{true}
+  \quad\Longleftrightarrow\quad
+  (\text{overwrite} = \text{false})\ \land\ (\text{existing} \ne E).
+\]
+For arbitrary byte arrays, the proofs cover a changed same-path file, an existing
+Save As destination, a deleted previously saved file, a new absent file, and an
+explicit overwrite. The comparison is against the bytes \emph{already read}; it
+cannot prevent a later race with another writer.
+
+The connection to the real implementation is itself checked:
+\begin{lstlisting}
+theorem saveDocument_decomposition
+    (doc : Document) (text path : String) (overwrite : Bool) :
+    saveDocument doc text path overwrite = (do
+      let path <- canonical path
+      let existing <- readOptional path
+      checkedSave doc text path existing overwrite) := by
+  rfl
+\end{lstlisting}
+Here the listing writes Lean's left arrow as ASCII \code{<-}. In the source it is
+spelled with the equivalent Lean arrow notation. The proof is definitional: the
+named body unfolds to the existing application code without changing it.
+
+The theorem \code{rejected_save_is_error} establishes, for all its inputs, that
+when the conflict flag is true, \code{checkedSave} is equal as an IO computation
+to throwing the conflict error. The later \code{atomicWrite} operation is absent
+from that branch. This is stronger than proving the Boolean flag alone, but it is
+\emph{not} a proof of the native write routine, nor of atomic compare-and-swap on
+a live filesystem.
+
+\subsubsection*{3. Edited encoding and the BOM prefix}
+For any changed text and a document with its BOM flag set, the result is
+\[
+  [239,187,191]\;{+\!+}\;
+  \operatorname{UTF8}\bigl(\operatorname{replaceLF}(\text{text},\text{newline})\bigr).
+\]
+The numbers are the actual UTF-8 bytes EF BB BF, not just a textual marker.
+\begin{lstlisting}
+theorem changed_bom_prefix (doc : Document) (text : String)
+    (htext : text ≠ doc.text) (hbom : doc.bom = true) :
+    (encodeDocument doc text).extract 0 3 =
+      ByteArray.mk #[239,187,191] := by
+  rw [changed_bom_encoding doc text htext hbom]
+  exact ByteArray.extract_append_eq_left (by rfl)
+\end{lstlisting}
+Other theorems establish the full encoded-body formula, the formula with no
+inserted BOM when the flag is false, and a size of three bytes plus the encoded
+body length. ``No inserted BOM'' does not mean the user's text cannot itself
+begin with a BOM character. The changed-text hypothesis matters: unchanged text
+takes the original-byte-preserving branch instead.
+
+\subsubsection*{4. Decoder primitives and absent documents}
+\begin{lstlisting}
+theorem invalid_utf8_rejected (bytes : ByteArray)
+    (h : ¬ bytes.IsValidUTF8) :
+    String.fromUTF8? bytes = none := by
+  simp [String.fromUTF8?, h]
+\end{lstlisting}
+The source also proves that encoding any Lean string and decoding it with
+\code{String.fromUTF8?} returns that string. These are properties of the exact
+primitive used by the editor; they do not yet lift through the full BOM/newline
+processing pipeline. For every path, \code{absent_document_is_empty} proves that
+\code{decodeDocument path none} returns the empty document record with that path.
+It does not prove the operating system accurately reports absence.
+
+\subsubsection*{5. Bounds for the slicing helper}
+For all strings $s$ and natural-number endpoints $a,b$, the proof establishes
+\[
+ \operatorname{length}(\operatorname{charSlice}(s,a,b))
+ = \min\bigl(b\mathbin{-}a,\;\operatorname{length}(s)\mathbin{-}a\bigr),
+\]
+where natural-number subtraction saturates at zero. Corollaries show the slice
+cannot exceed the requested length or the original length, and is empty when
+$b\le a$. The bounds count Unicode scalar characters, not UTF-8 bytes or visual
+grapheme clusters. They concern the actual helper; they are not a proof of the
+separate word-boundary loop or every cursor operation.
+
+\subsection{Proof search and trust boundaries}\label{sec:trust}
+The proof search used the installed Lean 4.35.0-rc3 standard library and official
+Lean documentation. Useful ingredients were simplification with \code{simp},
+definitional equality with \code{rfl}, arithmetic reasoning with \code{omega},
+string/byte-array append lemmas and list take/drop length lemmas. No Mathlib
+dependency was needed. The scripts are new proofs of this editor's properties,
+not purported pre-existing proofs of the whole application.
+
+The audit command \texttt{\#print axioms} was run for every public theorem. Its
+reported dependencies are subsets of \code{propext}, \code{Classical.choice} and
+\code{Quot.sound}, Lean's standard logical axioms. No result uses \code{sorry},
+\code{admit}, a new application axiom, \code{native_decide}, or
+\code{Lean.trustCompiler}. The reproducible checker rejects theorem audits
+containing axioms outside that list.
+
+\textbf{This is not a proof of the entire executable.} The kernel checks statements
+about Lean definitions. Runtime correspondence still relies on Lean's compiler
+and runtime, compiled implementations of standard primitives, the handwritten C
+bridge, Tcl/Tk, and macOS. The save-body equality establishes program structure;
+it does not supply a formal filesystem. The certificate does not promise that
+Finder works, that every GUI action is correct, or that arbitrary concurrent
+writes cannot race.
+
+\subsection{Open properties and counterexamples}
+Two proposed-looking specifications need correction before attempting proofs:
+\begin{itemize}
+\item \textbf{``Indenting by zero is always the identity'' is false.} Evaluating
+\code{indentText} on a tab followed by x, with amount zero, produces x. The
+nonpositive branch removes a leading tab. A future round-trip theorem should
+specify positive indentation widths and the intended tab policy.
+\item \textbf{``Every filled line has length at most 80'' is false.} Evaluating
+\code{fillText} on an 81-character word leaves length 81. Long words are not split.
+A width theorem needs assumptions on word length and indentation, or a deliberate
+behavior change.
+\end{itemize}
+These evaluations are recorded in \code{VerificationExamples.lean}. They are
+\emph{examples}, not universal proofs or assumptions used by the theorem file.
+The attempted direct \code{decide} reduction also encountered opaque string
+operations; native evaluation was used only to inspect examples, never to certify
+a theorem.
+
+The next valuable work is to prove the complete decoder/encoder connection,
+followed by positive-width indentation round trips and navigation invariants.
+The existing partial/loop-heavy implementations and older string operations may
+need proof-friendly lemmas or carefully justified refactoring. The Tcl keyboard
+handler requires a semantic model before its example tests can become an
+end-to-end universal non-evaluation theorem.
+
+\subsection{Reproducing and maintaining this document}\label{sec:reproduce}
+From the project directory:
+\begin{lstlisting}
+python3 editor_lean/check_proofs.py
+python3 editor_lean/build_document.py
+\end{lstlisting}
+The proof checker first recompiles the current \code{EditorLean.lean} to an importable
+module, then checks \code{EditorLeanProofs.lean} and audits its axioms. It writes
+\code{verification.log} and \code{verification.json}, including source SHA-256
+hashes. It does not modify the application or rebuild its app bundle.
+
+The document builder rechecks the proofs and runs LaTeX until the table of contents
+and cross-references are current. The final files are \code{EditorLean.tex} and
+\code{EditorLean.pdf} in the project root. Re-run the builder after every document
+revision; subsequent work on this document should deliver a newly compiled PDF
+alongside the updated source.
+
+\textbf{Evidence for this edition.} The current native suite reported 64 passes;
+the 61 baseline assertions are catalogued above. The checker accepted 21 public
+universal theorems. The application source digest is:
+{\small\begin{quote}\path{3a0ef97b8b9e43e78dbdbd383aa635ab74cca6f971dd5e8a49ab5fb82a73bc3a}\end{quote}}
+The full audit, proof digest and exact toolchain version are in
+\code{editor_lean/verification.json}. These records bind this proof run to its
+source; a later source change requires another check.
+
+\subsubsection*{Primary references}
+\begin{itemize}
+\item Local implementation: \path{editor_lean/EditorLean.lean}.\\
+Proof module: \path{editor_lean/EditorLeanProofs.lean}.\\
+Audit: \path{editor_lean/verification.log}.
+\item \href{https://lean-lang.org/doc/reference/latest/Tactic-Proofs/Tactic-Reference/}{Lean Reference: Tactic Reference},
+and \href{https://lean-lang.org/doc/reference/latest/ValidatingProofs/}{Validating Proofs}.
+\item \href{https://lean-lang.org/doc/reference/latest/Axioms/}{Lean Reference: Axioms}.
+These explain kernel checking and why native evaluation changes the trust assumptions.
+\item Installed version's \href{https://github.com/leanprover/lean4/blob/v4.35.0-rc3/src/lean/Init/Data/ByteArray/Lemmas.lean}{ByteArray lemmas}
+and \href{https://github.com/leanprover/lean4/blob/v4.35.0-rc3/src/lean/Init/Data/String/Defs.lean}{String definitions}.
+The pinned local compiler, rather than the changing ``latest'' manual, checked the proofs.
+\end{itemize}
+\end{document}

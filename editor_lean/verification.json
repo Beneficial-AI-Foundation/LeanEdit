@@ -1,0 +1,36 @@
+{
+  "toolchain": "Lean (version 4.35.0-rc3, arm64-apple-darwin24.6.0, commit 470d5ce1400764999581fd26d5d72b00d990b0f4, Release)",
+  "theorem_count": 21,
+  "theorems": [
+    "unchanged_bytes",
+    "unchanged_without_original",
+    "saveDocument_decomposition",
+    "conflict_iff",
+    "same_path_conflict_iff",
+    "save_as_existing_conflicts",
+    "deleted_file_conflicts",
+    "new_file_allowed",
+    "explicit_overwrite_allowed",
+    "rejected_save_is_error",
+    "changed_bom_encoding",
+    "changed_no_bom_encoding",
+    "changed_bom_prefix",
+    "changed_bom_size",
+    "utf8_roundtrip",
+    "invalid_utf8_rejected",
+    "absent_document_is_empty",
+    "slice_length",
+    "slice_bounded",
+    "slice_no_growth",
+    "slice_reversed_empty"
+  ],
+  "axioms": [
+    "Classical.choice",
+    "Quot.sound",
+    "propext"
+  ],
+  "sha256": {
+    "EditorLean.lean": "3a0ef97b8b9e43e78dbdbd383aa635ab74cca6f971dd5e8a49ab5fb82a73bc3a",
+    "EditorLeanProofs.lean": "48b99990286bec6b11f4014cf81be098f0b90b4e1ade2f1d4f62a5b9997202b4"
+  }
+}
