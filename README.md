@@ -1,6 +1,6 @@
 # EditorLean
 
-A native macOS text editor with its application logic written in Lean and a small C bridge to Tcl/Tk. The current version is 1.0.4 and targets Apple silicon on macOS 14 or later.
+A native text editor with its application logic written in Lean and a small C bridge to Tcl/Tk. The current version is 1.0.4 and targets Apple silicon on macOS 14 or later, and x86_64 Linux.
 
 ## Contents
 
@@ -25,6 +25,24 @@ python3 editor_lean/build.py --tk-bundle /absolute/path/to/TclTk/Frameworks
 The build defaults to `~/.elan/toolchains/leanprover--lean4---v4.35.0-rc3`; use `--toolchain` to override it. Without `--tk-bundle`, it looks for a previously packaged Python Editor runtime at `dist/Editor.app/Contents/Frameworks`.
 
 The script compiles the application, runs native self-tests, signs the bundle locally, and creates `dist/EditorLean.app` and `dist/EditorLean-AppleSilicon.zip`.
+
+### Linux (x86_64)
+
+Prerequisites are Lean 4.35.0-rc3 (via elan), Python 3, a system C compiler (`cc`), and the X11/Xft/fontconfig development libraries. Tcl/Tk 9.0.4 is not packaged by most distributions, so build it from the official source tarballs into a local prefix:
+
+```sh
+# from tcl9.0.4/unix and then tk9.0.4/unix
+./configure --prefix=$PWD/../../../tcltk-9.0.4 --enable-shared --disable-zipfs [--enable-xft for Tk]
+make && make install
+```
+
+The build defaults to the prefix `.editor-lean-build/tcltk-9.0.4`; use `--tk-bundle /path/to/prefix` to override it.
+
+```sh
+python3 editor_lean/build.py
+```
+
+This compiles the application, runs the native self-tests, and creates a relocatable tree `dist/EditorLean/` (`bin/`, bundled Tcl/Tk in `lib/`, script libraries in `share/editorlean/`, a `.desktop` file, and `diagnose-editorlean.sh`) plus `dist/EditorLean-linux-x86_64.tar.gz`. The app uses the system X11 libraries and runs under XWayland on Wayland desktops. On Linux, shortcuts use Control and the editor font is the fontconfig `Monospace` family.
 
 ## Verification
 

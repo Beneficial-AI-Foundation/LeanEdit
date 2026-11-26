@@ -11,7 +11,17 @@
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
+#ifdef __APPLE__
 #include <mach-o/dyld.h>
+#define EDITOR_PLATFORM "macOS"
+/* App bundle: Contents/MacOS/EditorLean -> Contents/Resources. */
+#define EDITOR_RESOURCES "/../Resources"
+#else
+#include <sys/syscall.h>
+#define EDITOR_PLATFORM "Linux"
+/* Install tree: bin/EditorLean -> share/editorlean. */
+#define EDITOR_RESOURCES "/../share/editorlean"
+#endif
 extern int Tk_Init(Tcl_Interp *);
 extern void Tk_MainLoop(void);
 extern lean_object *editor_event(lean_object *);
@@ -19,9 +29,33 @@ static Tcl_Interp *interp;
 static int diagnostics;
 static int tracing_startup;
 static FILE *diagnostic_stream;
+/* Nonzero when the calling thread is the process's initial (OS main) thread. */
+static int on_main_thread(void) {
+#ifdef __APPLE__
+    return pthread_main_np() != 0;
+#else
+    return (pid_t)syscall(SYS_gettid) == getpid();
+#endif
+}
+/* Absolute path of the running executable, or -1 when unavailable. */
+static int executable_path(char *buffer, size_t capacity) {
+#ifdef __APPLE__
+    uint32_t size = (uint32_t)capacity;
+    return _NSGetExecutablePath(buffer,&size) == 0 ? 0 : -1;
+#else
+    ssize_t n = readlink("/proc/self/exe", buffer, capacity - 1);
+    if (n < 0 || (size_t)n >= capacity - 1) return -1;
+    buffer[n] = 0;
+    return 0;
+#endif
+}
 /* Log Finder launches beside the app when that directory is writable. This
-   needs no Terminal and survives Tk replacing stdout/stderr with /dev/null. */
+   needs no Terminal and survives Tk replacing stdout/stderr with /dev/null.
+   Linux desktop launchers keep stderr usable (journal/session log), and the
+   install tree is often read-only, so there the log is opt-in via
+   EDITORLEAN_DIAGNOSTICS only. */
 static void start_finder_diagnostics(const char *executable_directory) {
+#ifdef __APPLE__
     if (diagnostics || isatty(STDIN_FILENO)) return;
     char path[PATH_MAX];
     if (snprintf(path,sizeof(path),"%s/../../../EditorLean-Finder-startup.log",
@@ -31,29 +65,32 @@ static void start_finder_diagnostics(const char *executable_directory) {
     diagnostic_stream = fdopen(fd,"w");
     if (!diagnostic_stream) { close(fd); return; }
     diagnostics = tracing_startup = 1;
+#else
+    (void)executable_directory;
+#endif
 }
 static void trace_startup(const char *stage) {
     if (!diagnostics) return;
     fprintf(diagnostic_stream, "[EditorLean pid=%d main-thread=%d] %s\n",
-            getpid(), pthread_main_np(), stage);
+            getpid(), on_main_thread(), stage);
     fflush(diagnostic_stream);
 }
 /* Lean 4.35 normally moves main onto a large-stack worker. AppKit/Tk must
-   instead run on the OS main thread. Set Lean's supported switch before its
+   instead run on the OS main thread (and X11 Tk is kept there too). Set Lean's supported switch before its
    generated main executes; this also covers Finder launches with no shell. */
 __attribute__((constructor)) static void editor_configure_main_thread(void) {
     setenv("LEAN_MAIN_USE_THREAD", "0", 1);
     diagnostics = getenv("EDITORLEAN_DIAGNOSTICS") != NULL;
     tracing_startup = diagnostics;
     if (diagnostics) {
-        /* Keep a private copy: macOS Tk may replace the standard channels. */
+        /* Keep a private copy: Tk may replace the standard channels. */
         diagnostic_stream = fdopen(dup(STDERR_FILENO), "w");
         if (!diagnostic_stream) { diagnostics = 0; tracing_startup = 0; }
     }
-    trace_startup("native executable entered (diagnostic build 1.0.4)");
+    trace_startup("native executable entered (diagnostic build 1.0.4, " EDITOR_PLATFORM ")");
 }
 lean_object *editor_is_main_thread(void) {
-    return lean_io_result_mk_ok(lean_box(pthread_main_np() != 0));
+    return lean_io_result_mk_ok(lean_box(on_main_thread()));
 }
 uint8_t editor_is_word(uint32_t c) {
     return c == '_' || Tcl_UniCharIsAlnum((int)c);
@@ -84,10 +121,10 @@ static int event_callback(void *unused, Tcl_Interp *ip, Tcl_Size count, Tcl_Obj 
     return code;
 }
 lean_object *editor_tk_init(uint8_t gui) {
-    if (gui && !pthread_main_np())
-        return failure("EditorLean must initialize its macOS GUI on the main thread.");
-    char exe[PATH_MAX]; uint32_t size = sizeof(exe);
-    if (_NSGetExecutablePath(exe,&size) != 0) return failure("Executable path is too long.");
+    if (gui && !on_main_thread())
+        return failure("EditorLean must initialize its " EDITOR_PLATFORM " GUI on the main thread.");
+    char exe[PATH_MAX];
+    if (executable_path(exe,sizeof(exe)) != 0) return failure("Cannot determine the executable path.");
     char resolved[PATH_MAX], library[PATH_MAX], startup[PATH_MAX] = "";
     if (realpath(exe, resolved)) {
         char *slash = strrchr(resolved, '/');
@@ -97,21 +134,27 @@ lean_object *editor_tk_init(uint8_t gui) {
                 start_finder_diagnostics(resolved);
                 trace_startup("native GUI startup: EditorLean 1.0.4");
             }
-            snprintf(library,sizeof(library),"%s/../Resources/tcl9.0",resolved);
+            snprintf(library,sizeof(library),"%s" EDITOR_RESOURCES "/tcl9.0",resolved);
             if (access(library,R_OK)==0) setenv("TCL_LIBRARY",library,1);
-            snprintf(library,sizeof(library),"%s/../Resources/tk9.0",resolved);
+            snprintf(library,sizeof(library),"%s" EDITOR_RESOURCES "/tk9.0",resolved);
             if (access(library,R_OK)==0) setenv("TK_LIBRARY",library,1);
-            snprintf(startup,sizeof(startup),"%s/../Resources/native-startup.tcl",resolved);
+            snprintf(startup,sizeof(startup),"%s" EDITOR_RESOURCES "/native-startup.tcl",resolved);
         }
     }
     trace_startup("initializing Tcl");
     Tcl_FindExecutable(exe);
     interp = Tcl_CreateInterp();
-    /* Finder supplies /dev/null as stdin. Without a startup script Tk treats
+    /* Finder (and many Linux launchers) supply /dev/null as stdin. Without a startup script Tk treats
        this as an interactive Wish session and creates a second interpreter
        and console. Our native Lean main owns startup instead. */
     if (!startup[0] || access(startup,R_OK) != 0)
-        return failure("The app is missing Resources/native-startup.tcl. Rebuild the complete app bundle.");
+        return failure("EditorLean is missing its native-startup.tcl resource ("
+#ifdef __APPLE__
+                       "Contents/Resources"
+#else
+                       "share/editorlean"
+#endif
+                       "). Rebuild the complete application.");
     Tcl_SetStartupScript(Tcl_NewStringObj(startup,-1),"utf-8");
     unsetenv("TK_CONSOLE");
     Tcl_SetVar(interp,"tcl_interactive","0",TCL_GLOBAL_ONLY);
@@ -123,9 +166,9 @@ lean_object *editor_tk_init(uint8_t gui) {
     trace_startup("Tcl initialized");
     Tcl_CreateObjCommand2(interp,"editor",event_callback,NULL,NULL);
     if (gui) {
-        trace_startup("initializing macOS Tk");
+        trace_startup("initializing " EDITOR_PLATFORM " Tk");
         if (Tk_Init(interp) != TCL_OK) return result(TCL_ERROR);
-        trace_startup("macOS Tk initialized");
+        trace_startup(EDITOR_PLATFORM " Tk initialized");
     }
     return lean_io_result_mk_ok(lean_box(0));
 }
