@@ -46,8 +46,9 @@
 \vspace{5pt}
 EditorLean 1.0.4 \quad | \quad Lean 4.35.0-rc3 \quad | \quad 16 November 2026
 \vspace{8pt}\hrule\vspace{8pt}
-\note{\textbf{Current status.} The editor works when started with
-\code{Diagnose EditorLean.command}. Finder activation remains unresolved and is
+\note{\textbf{Current status.} The editor works when started from Finder or with
+\code{Diagnose EditorLean.command}; Finder (Launch Services) activation was
+confirmed by end-to-end tests on 25--26 November 2026. Startup behaviour is
 outside this document's proof claims. The requested baseline has \textbf{61 test
 assertions}; the current app has three additional startup checks. This work adds
 \textbf{21 universally quantified Lean theorems}, checked against the existing
@@ -211,8 +212,8 @@ The suite runs compiled Lean and the real Tcl/C bridge, uses temporary files for
 file tests, and launches small controlled shell commands. It does not open GUI
 windows. A separate \code{--gui-self-test} suite exercises real widgets,
 key-event bindings, search, undo, clipboard, split panes, rectangles, macros and
-shell filtering. The GUI suite remains unverified in this restricted session;
-the user has confirmed ordinary operation through the diagnostic launcher.
+shell filtering. All 20 GUI tests passed in a normal desktop session on
+26 November 2026, including runs without a terminal attached.
 
 \subsection{The 61-test catalogue}
 The seven groups contain $2+4+21+9+9+13+3=61$ assertions. The interop group includes
@@ -503,7 +504,7 @@ alongside the updated source.
 \textbf{Evidence for this edition.} The current native suite reported 64 passes;
 the 61 baseline assertions are catalogued above. The checker accepted 21 public
 universal theorems. The application source digest is:
-{\small\begin{quote}\path{3a0ef97b8b9e43e78dbdbd383aa635ab74cca6f971dd5e8a49ab5fb82a73bc3a}\end{quote}}
+{\small\begin{quote}\path{2063a8b026d2b3a19c4689cbcc091d528962d9c7232d839cbfa377862aef5b39}\end{quote}}
 The full audit, proof digest and exact toolchain version are in
 \code{editor_lean/verification.json}. These records bind this proof run to its
 source; a later source change requires another check.

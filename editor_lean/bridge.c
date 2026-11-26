@@ -18,6 +18,7 @@ extern lean_object *editor_event(lean_object *);
 static Tcl_Interp *interp;
 static int diagnostics;
 static int tracing_startup;
+static int gui_test_mode;
 static FILE *diagnostic_stream;
 /* Log Finder launches beside the app when that directory is writable. This
    needs no Terminal and survives Tk replacing stdout/stderr with /dev/null. */
@@ -51,6 +52,13 @@ __attribute__((constructor)) static void editor_configure_main_thread(void) {
         if (!diagnostic_stream) { diagnostics = 0; tracing_startup = 0; }
     }
     trace_startup("native executable entered (diagnostic build 1.0.4)");
+}
+/* The GUI self-test is not a Finder launch, even when stdin is /dev/null
+   (CI, launchd, non-interactive shells). It must not overwrite the Finder
+   startup log, and its PASS/FAIL output must survive Tk's stdio redirect. */
+lean_object *editor_enable_gui_test_mode(void) {
+    gui_test_mode = 1;
+    return lean_io_result_mk_ok(lean_box(0));
 }
 lean_object *editor_is_main_thread(void) {
     return lean_io_result_mk_ok(lean_box(pthread_main_np() != 0));
@@ -94,7 +102,7 @@ lean_object *editor_tk_init(uint8_t gui) {
         if (slash) {
             *slash = 0;
             if (gui) {
-                start_finder_diagnostics(resolved);
+                if (!gui_test_mode) start_finder_diagnostics(resolved);
                 trace_startup("native GUI startup: EditorLean 1.0.4");
             }
             snprintf(library,sizeof(library),"%s/../Resources/tcl9.0",resolved);
@@ -124,7 +132,17 @@ lean_object *editor_tk_init(uint8_t gui) {
     Tcl_CreateObjCommand2(interp,"editor",event_callback,NULL,NULL);
     if (gui) {
         trace_startup("initializing macOS Tk");
-        if (Tk_Init(interp) != TCL_OK) return result(TCL_ERROR);
+        /* With stdin at /dev/null, macOS Tk sends stdout/stderr to /dev/null.
+           Restore them in test mode so results and failures stay visible. */
+        int saved_out = -1, saved_err = -1;
+        if (gui_test_mode) {
+            fflush(stdout); fflush(stderr);
+            saved_out = dup(STDOUT_FILENO); saved_err = dup(STDERR_FILENO);
+        }
+        int code = Tk_Init(interp);
+        if (saved_out >= 0) { fflush(stdout); dup2(saved_out, STDOUT_FILENO); close(saved_out); }
+        if (saved_err >= 0) { fflush(stderr); dup2(saved_err, STDERR_FILENO); close(saved_err); }
+        if (code != TCL_OK) return result(TCL_ERROR);
         trace_startup("macOS Tk initialized");
     }
     return lean_io_result_mk_ok(lean_box(0));
