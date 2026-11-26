@@ -920,12 +920,18 @@ def definition (id : String) (tip : Bool) : IO Unit := do
     return
   alert id "Definition" ("No tags entry for "++name)
 
+/-- The print preview page. The newline after `<pre>` is consumed by the HTML
+parser, so a document's own leading blank line survives; `overflow-wrap` breaks
+lines that have no spaces; HTML parsers discard U+0000, so NUL prints as ␀. -/
+def printPage (value : String) : String :=
+  let escape := fun s : String => s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;" |>.replace "\"" "&quot;" |>.replace "\u0000" "␀"
+  "<!doctype html><meta charset='utf-8'><title>Print — EditorLean</title><style>pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px monospace}</style><pre>\n"++escape value++"</pre>"
+
 def printText (id : String) : IO Unit := do
   let value ← selected id
   let value ← if value == "" then contents id else pure value
-  let escape := fun s : String => s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;" |>.replace "\"" "&quot;"
   let (handle,path) ← IO.FS.createTempFile
-  handle.putStr ("<!doctype html><meta charset='utf-8'><title>Print — EditorLean</title><style>pre{white-space:pre-wrap;font:12px monospace}</style><pre>"++escape value++"</pre>")
+  handle.putStr (printPage value)
   handle.flush
   let html := path.toString++".html"
   IO.FS.rename path html
@@ -1189,6 +1195,12 @@ def selfTests : IO Unit := do
   check "indent multiline" (indentText "a\n b" 2 == "  a\n   b")
   check "unindent spaces and tabs" (indentText "    a\n\tb\n c" (-4) == "a\nb\nc")
   check "fill paragraph" (fillText "  first  second\n  third" == "  first second third")
+  let page := printPage "\nfirst\u0000<b>&\""
+  let has := fun (part : String) => (page.splitOn part).length > 1
+  check "print keeps a leading blank line" (has "<pre>\n\nfirst")
+  check "print shows NUL as a visible symbol" (has "first␀" && !page.any (· == '\u0000'))
+  check "print escapes HTML" (has "&lt;b&gt;&amp;&quot;</pre>")
+  check "print wraps lines without spaces" (has "overflow-wrap:anywhere")
   for raw in ["plain","line\n","a\r\nb","a\rb","\uFEFFα\r\nβ","a\r\nb\nc\rd",""] do
     let doc ← decodeDocument "" (some raw.toUTF8)
     check "unchanged file keeps its exact bytes" (encodeDocument doc doc.text == raw.toUTF8)

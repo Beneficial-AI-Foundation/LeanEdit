@@ -19,6 +19,13 @@ uses Tcl/Tk, as the original editor did. This is a Lean rewrite of the editor
 logic, not a Python launcher. Lean code is type-checked; this is not a formally
 proved editor.
 
+PRINT PREVIEW FIXES (26 NOVEMBER 2026)
+
+Long lines without spaces now wrap instead of running off the page; a document
+that starts with an empty line keeps it; NUL characters print as a visible ␀
+symbol, because HTML cannot carry U+0000. The page is built by printPage, which
+four native tests check.
+
 EXIT LOGGING (26 NOVEMBER 2026)
 
 When the startup log is active (Finder launches, or EDITORLEAN_DIAGNOSTICS=1),
@@ -132,11 +139,11 @@ TESTS
   dist/EditorLean.app/Contents/MacOS/EditorLean --self-test
   dist/EditorLean.app/Contents/MacOS/EditorLean --gui-self-test
 
-66 native tests passed on macOS 26.5.1 (the 1.0.4 release's 64 also passed on
+70 native tests passed on macOS 26.5.1 (the 1.0.4 release's 64 also passed on
 macOS 14.6.1), covering main-thread startup and rejection
 of worker-thread GUI initialization, the C/Lean callback boundary,
 Unicode and NUL data, Tcl quoting, document encoding, atomic saves, conflicts,
-symlinks, permissions, exit logging, and asynchronous shell I/O and
+symlinks, permissions, exit logging, the print preview page, and asynchronous shell I/O and
 cancellation.
 
 The GUI suite exercises real widgets, search/replacement, undo, clipboard,
