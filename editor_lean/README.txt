@@ -19,6 +19,16 @@ uses Tcl/Tk, as the original editor did. This is a Lean rewrite of the editor
 logic, not a Python launcher. Lean code is type-checked; this is not a formally
 proved editor.
 
+EXIT LOGGING (26 NOVEMBER 2026)
+
+When the startup log is active (Finder launches, or EDITORLEAN_DIAGNOSTICS=1),
+it now records why the app ended: Quit request, last window closed,
+SIGTERM/SIGHUP/SIGINT, a crash signal, or a normal process exit. This is to
+diagnose occasional closes shortly after launch, seen 4 times in about 45
+starts on 25 November; 20 Finder-style starts on 26 November did not reproduce
+it. Two native tests run the app with the internal --exit-log-probe option,
+which opens no windows, and check the recorded reasons.
+
 GUI SELF-TEST FIX AFTER 1.0.4 TESTING (26 NOVEMBER 2026)
 
 When stdin is /dev/null (CI, scripts, launchd), macOS Tk sent stdout/stderr to
@@ -122,10 +132,12 @@ TESTS
   dist/EditorLean.app/Contents/MacOS/EditorLean --self-test
   dist/EditorLean.app/Contents/MacOS/EditorLean --gui-self-test
 
-64 native tests passed on macOS 14.6.1, covering main-thread startup and rejection
+66 native tests passed on macOS 26.5.1 (the 1.0.4 release's 64 also passed on
+macOS 14.6.1), covering main-thread startup and rejection
 of worker-thread GUI initialization, the C/Lean callback boundary,
 Unicode and NUL data, Tcl quoting, document encoding, atomic saves, conflicts,
-symlinks, permissions, and asynchronous shell I/O and cancellation.
+symlinks, permissions, exit logging, and asynchronous shell I/O and
+cancellation.
 
 The GUI suite exercises real widgets, search/replacement, undo, clipboard,
 shared split panes, rectangular editing, macros and shell filtering. Run it

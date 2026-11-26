@@ -5,6 +5,7 @@ import Std
 @[extern "editor_tk_init"] opaque tkInit (gui : Bool) : IO Unit
 @[extern "editor_is_main_thread"] opaque isMainThread : IO Bool
 @[extern "editor_enable_gui_test_mode"] opaque enableGuiTestMode : IO Unit
+@[extern "editor_log_event"] opaque logEvent (message : @& String) : IO Unit
 @[extern "editor_startup_configured"] opaque startupConfigured : IO Bool
 @[extern "editor_tk_call"] opaque tk (args : @& Array String) : IO String
 @[extern "editor_tk_eval"] opaque tkEval (script : @& String) : IO String
@@ -860,7 +861,9 @@ def closeWindow (id : String) : IO Unit := do
   cancelOperation id
   windows.modify (·.filter (·.id != id))
   cmd #["destroy",id]
-  if (← windows.get).isEmpty then cmd #["destroy","."]
+  if (← windows.get).isEmpty then
+    logEvent "last editor window closed; app exiting"
+    cmd #["destroy","."]
 
 def pollShell (id : String) : IO Unit := do
   let some job := (← getWindow id).job | return
@@ -991,8 +994,12 @@ def dispatch (id action : String) (args : Array String) : IO Unit := do
     if path != "" then insertText id (← openDocument path).text
   | "save" => discard <| save id (truth a)
   | "revert" => reload id
-  | "close" => if ← confirmDiscard id then closeWindow id
+  | "close" =>
+    if ← confirmDiscard id then
+      logEvent "window closed by the Close command or close button"
+      closeWindow id
   | "quit_all" =>
+    logEvent "Quit requested (Command-Q, the app menu, the Dock or macOS)"
     let all ← windows.get
     for window in all do if !(← confirmDiscard window.id) then return
     for window in all do closeWindow window.id
@@ -1224,6 +1231,15 @@ def selfTests : IO Unit := do
     check "file permissions survive save" ((← tk #["expr",← tk #["file","attributes",path,"-permissions"]]) == "416")
   finally
     if ← temp.pathExists then IO.FS.removeFile temp
+  -- Exit logging: a diagnostic child records why it ended (normal exit, SIGTERM).
+  let probe := fun (mode : String) => do
+    let app ← IO.appPath
+    IO.Process.output {cmd:=app.toString,args:=#["--exit-log-probe",mode],env:=#[("EDITORLEAN_DIAGNOSTICS",some "1")]}
+  let logged := fun (out : IO.Process.Output) (line : String) => (out.stderr.splitOn line).length > 1
+  let normal ← probe "exit"
+  check "exit log records a normal exit" (normal.exitCode == 0 && logged normal "] exit: process exiting")
+  let killed ← probe "sigterm"
+  check "exit log records SIGTERM" (killed.exitCode != 0 && logged killed "] exit: terminated by SIGTERM")
   let large := String.ofList (List.replicate 200000 'x')
   let (_,task) ← launchShell "cat; printf error >&2" large
   let out ← IO.ofExcept task.get
@@ -1323,6 +1339,13 @@ def main (args : List String) : IO UInt32 := do
   if args.contains "--version" then IO.println "EditorLean 1.0.4 (Lean 4.35.0-rc3 → C → ARM64; Tcl/Tk 9.0.4)"; return 0
   if args.contains "--self-test" then selfTests; return 0
   if args.contains "--gui-self-test" then guiTests; return 0
+  -- Internal helper for the exit-logging self-test; opens no windows.
+  if args.contains "--exit-log-probe" then
+    tkInit false
+    if args.contains "sigterm" then
+      discard <| IO.Process.output {cmd:="/bin/sh",args:=#["-c","kill -TERM $PPID"]}
+      IO.sleep 5000
+    return 0
   tkInit true
   cmd #["wm","withdraw","."]
   let id ← newWindow

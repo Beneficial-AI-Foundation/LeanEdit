@@ -30,7 +30,7 @@
     "propext"
   ],
   "sha256": {
-    "EditorLean.lean": "2063a8b026d2b3a19c4689cbcc091d528962d9c7232d839cbfa377862aef5b39",
+    "EditorLean.lean": "01c7f267560833975d9421b302c81bdc25323102562f734337f4dcc226d44691",
     "EditorLeanProofs.lean": "48b99990286bec6b11f4014cf81be098f0b90b4e1ade2f1d4f62a5b9997202b4"
   }
 }
