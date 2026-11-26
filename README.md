@@ -48,10 +48,13 @@ This compiles the application, runs the native self-tests, and creates a relocat
 
 ```sh
 python3 editor_lean/check_proofs.py
-dist/EditorLean.app/Contents/MacOS/EditorLean --self-test
+dist/EditorLean.app/Contents/MacOS/EditorLean --self-test   # macOS
+dist/EditorLean/bin/EditorLean --self-test                   # Linux
 ```
 
-The proof checker compiles a fresh application import, checks all 21 theorems, audits their axioms, and regenerates `editor_lean/verification.json` and an ignored verification log. Set `EDITORLEAN_LEAN` to override the Lean executable.
+On Linux (Arch, GNOME on Wayland via XWayland), 64 native and 20 GUI self-tests pass. The macOS build has not been rebuilt or retested since the Linux port; its code paths are kept behind platform checks but are unverified on a Mac.
+
+The proof checker compiles a fresh application import, checks all 21 theorems, audits their axioms, and regenerates `editor_lean/verification.json` and an ignored verification log. The record omits the host platform, so macOS and Linux runs produce the same file. Set `EDITORLEAN_LEAN` to override the Lean executable.
 
 To rebuild the PDF, install a LaTeX distribution with `latexmk` and run:
 
