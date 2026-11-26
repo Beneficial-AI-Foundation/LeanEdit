@@ -4,6 +4,7 @@ import Std
    No Python code or Python runtime is used by this program. -/
 @[extern "editor_tk_init"] opaque tkInit (gui : Bool) : IO Unit
 @[extern "editor_is_main_thread"] opaque isMainThread : IO Bool
+@[extern "editor_enable_gui_test_mode"] opaque enableGuiTestMode : IO Unit
 @[extern "editor_startup_configured"] opaque startupConfigured : IO Bool
 @[extern "editor_tk_call"] opaque tk (args : @& Array String) : IO String
 @[extern "editor_tk_eval"] opaque tkEval (script : @& String) : IO String
@@ -1236,9 +1237,19 @@ def selfTests : IO Unit := do
   check "shell captures failure status" (out.exitCode == 7 && out.stderr == "failure")
   IO.println s!"{← testsPassed.get} native Lean tests passed."
 
+/-- True when this process's stdout is /dev/null (checked by a child that inherits it). -/
+def stdoutIsNull : IO Bool := do
+  let child ← IO.Process.spawn
+    {cmd:="/bin/sh",args:=#["-c","[ /dev/fd/1 -ef /dev/null ]"],stdin:=.null,stdout:=.inherit,stderr:=.null}
+  return (← child.wait) == 0
+
 def guiTests : IO Unit := do
   check "GUI starts on the macOS main thread" (← isMainThread)
+  let stdoutWasNull ← stdoutIsNull
+  enableGuiTestMode
   tkInit true
+  -- With stdin at /dev/null, macOS Tk redirects stdout; test mode must undo that.
+  check "GUI startup keeps test output visible" ((← stdoutIsNull) == stdoutWasNull)
   cmd #["wm","withdraw","."]
   let id ← newWindow
   -- Modal dialogs become failures in the automated GUI suite.

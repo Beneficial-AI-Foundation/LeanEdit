@@ -19,6 +19,14 @@ uses Tcl/Tk, as the original editor did. This is a Lean rewrite of the editor
 logic, not a Python launcher. Lean code is type-checked; this is not a formally
 proved editor.
 
+GUI SELF-TEST FIX AFTER 1.0.4 TESTING (26 NOVEMBER 2026)
+
+When stdin is /dev/null (CI, scripts, launchd), macOS Tk sent stdout/stderr to
+/dev/null, so --gui-self-test results and failure messages were lost, and the
+run overwrote EditorLean-Finder-startup.log with its own command trace. Test
+mode now restores the output streams after Tk starts and never writes the
+Finder log. A new GUI check guards the output streams.
+
 FINDER STARTUP CHANGE IN 1.0.4
 
 Finder normally starts applications with stdin attached to /dev/null. The
@@ -127,8 +135,9 @@ GUI validation still cannot complete in the restricted build session: launching
 through macOS Launch Services returns kLSServerCommunicationErr (-10822), and
 direct GUI initialization aborts in macOS application registration even on the
 main thread. The corrected thread placement is verified independently by the
-native tests. The user confirmed direct desktop launch through the diagnostic
-launcher; normal Finder activation and the full GUI test suite remain unverified.
+native tests. In a normal desktop session (25-26 November 2026, macOS 26.5.1),
+an end-to-end suite confirmed Launch Services (Finder) activation and all 20
+GUI tests.
 
 SOURCE REFERENCES
 
