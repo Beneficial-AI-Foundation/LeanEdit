@@ -47,4 +47,6 @@ The GUI self-test must run in a normal logged-in desktop session and uses tempor
 dist/EditorLean.app/Contents/MacOS/EditorLean --gui-self-test
 ```
 
-The native suite reports 70 passing native tests (64 in the 1.0.4 release, plus 2 exit-logging and 4 print-preview checks). On 25–26 November 2026, a Playwright end-to-end suite on macOS 26.5.1 confirmed that Launch Services (Finder) activation works and that all 20 GUI tests pass, including when run without a terminal. The formal proofs cover selected operations, not the entire editor.
+The native suite reports 71 passing native tests (64 in the 1.0.4 release, plus 2 exit-logging, 4 print-preview and 1 app-icon checks). On 25–26 November 2026, a Playwright end-to-end suite on macOS 26.5.1 confirmed that Launch Services (Finder) activation works and that all 20 GUI tests pass, including when run without a terminal. The formal proofs cover selected operations, not the entire editor.
+
+The app icon is `editor_lean/icon/EditorLean.icns`, rendered from `editor_lean/icon/EditorLean.svg`; the build stops if it is missing.

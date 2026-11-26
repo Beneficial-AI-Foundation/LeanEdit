@@ -19,6 +19,12 @@ uses Tcl/Tk, as the original editor did. This is a Lean rewrite of the editor
 logic, not a Python launcher. Lean code is type-checked; this is not a formally
 proved editor.
 
+APP ICON (26 NOVEMBER 2026)
+
+icon/EditorLean.icns is now part of the project, rendered from
+icon/EditorLean.svg. build.py stops before replacing the app if it is missing,
+and a native test checks that the bundle contains it.
+
 PRINT PREVIEW FIXES (26 NOVEMBER 2026)
 
 Long lines without spaces now wrap instead of running off the page; a document
@@ -139,11 +145,11 @@ TESTS
   dist/EditorLean.app/Contents/MacOS/EditorLean --self-test
   dist/EditorLean.app/Contents/MacOS/EditorLean --gui-self-test
 
-70 native tests passed on macOS 26.5.1 (the 1.0.4 release's 64 also passed on
+71 native tests passed on macOS 26.5.1 (the 1.0.4 release's 64 also passed on
 macOS 14.6.1), covering main-thread startup and rejection
 of worker-thread GUI initialization, the C/Lean callback boundary,
 Unicode and NUL data, Tcl quoting, document encoding, atomic saves, conflicts,
-symlinks, permissions, exit logging, the print preview page, and asynchronous shell I/O and
+symlinks, permissions, the app icon, exit logging, the print preview page, and asynchronous shell I/O and
 cancellation.
 
 The GUI suite exercises real widgets, search/replacement, undo, clipboard,
