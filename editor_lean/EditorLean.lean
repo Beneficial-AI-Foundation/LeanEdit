@@ -1195,6 +1195,8 @@ def selfTests : IO Unit := do
   check "indent multiline" (indentText "a\n b" 2 == "  a\n   b")
   check "unindent spaces and tabs" (indentText "    a\n\tb\n c" (-4) == "a\nb\nc")
   check "fill paragraph" (fillText "  first  second\n  third" == "  first second third")
+  let resources := ((← IO.appPath).parent.getD ".") / ".." / "Resources"
+  check "app bundle includes its icon" (← (resources / "EditorLean.icns").pathExists)
   let page := printPage "\nfirst\u0000<b>&\""
   let has := fun (part : String) => (page.splitOn part).length > 1
   check "print keeps a leading blank line" (has "<pre>\n\nfirst")

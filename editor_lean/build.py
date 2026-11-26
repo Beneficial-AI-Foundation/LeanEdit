@@ -31,6 +31,9 @@ def main():
         parser.error('Install Lean 4.35.0-rc3 or supply --toolchain.')
     if not (runtime / 'libtcl9.0.dylib').exists():
         parser.error('Supply --tk-bundle with Tcl/Tk 9.0.4 libraries and _tcl_data/_tk_data.')
+    icon = SOURCE / 'icon/EditorLean.icns'
+    if not icon.exists():
+        parser.error(f'App icon missing: {icon}. Restore it from git (its source is icon/EditorLean.svg).')
     BUILD.mkdir(exist_ok=True)
     generated = SOURCE / 'generated'
     generated.mkdir(exist_ok=True)
@@ -67,9 +70,7 @@ def main():
     run(toolchain / 'bin/leanc', '-O2', '-isysroot', sdk, '-I', SOURCE / 'vendor/tcl9.0.4', '-o', binaries / 'EditorLean',
         generated / 'EditorLean.c', SOURCE / 'bridge.c', '-L', compat, '-L', toolchain / 'lib', '-L', libraries, '-ltcl9.0', '-ltcl9tk9.0',
         '-Wl,-rpath,@executable_path/../Frameworks')
-    icon = runtime.parent / 'Resources/icon-windowed.icns'
-    if icon.exists():
-        shutil.copy2(icon, resources / 'EditorLean.icns')
+    shutil.copy2(icon, resources / 'EditorLean.icns')
     info = {
         'CFBundleExecutable': 'EditorLean', 'CFBundleName': 'EditorLean',
         'CFBundleDisplayName': 'EditorLean', 'CFBundleIdentifier': 'local.productivity.EditorLean',

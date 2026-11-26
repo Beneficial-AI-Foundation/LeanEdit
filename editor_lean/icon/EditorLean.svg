@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- EditorLean app icon: a page of text with a Lean lambda, on a macOS-style tile. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b6fd8"/>
+      <stop offset="1" stop-color="#1e3f8f"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9eef7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" filter="url(#shadow)"/>
+  <path d="M300 230 H620 L730 340 V800 a24 24 0 0 1 -24 24 H300 a24 24 0 0 1 -24 -24 V254 a24 24 0 0 1 24 -24 Z"
+        fill="url(#page)" filter="url(#shadow)"/>
+  <path d="M620 230 V316 a24 24 0 0 0 24 24 H730 Z" fill="#c5d2ea"/>
+  <g stroke="#9fb0cf" stroke-width="26" stroke-linecap="round">
+    <line x1="340" y1="330" x2="560" y2="330"/>
+    <line x1="340" y1="400" x2="660" y2="400"/>
+    <line x1="340" y1="470" x2="620" y2="470"/>
+  </g>
+  <path d="M408 560 L452 560 L590 770 L548 770 L496 690 L436 770 L392 770 L474 656 Z"
+        fill="#1e3f8f"/>
+  <rect x="610" y="700" width="26" height="80" rx="6" fill="#e8a33d"/>
+</svg>
