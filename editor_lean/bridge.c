@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <signal.h>
 #include <mach-o/dyld.h>
 extern int Tk_Init(Tcl_Interp *);
 extern void Tk_MainLoop(void);
@@ -38,6 +39,42 @@ static void trace_startup(const char *stage) {
     fprintf(diagnostic_stream, "[EditorLean pid=%d main-thread=%d] %s\n",
             getpid(), pthread_main_np(), stage);
     fflush(diagnostic_stream);
+}
+/* Record why the app ended. Spontaneous closes left no crash report, so the
+   log must say whether the app quit on request, lost its last window, was
+   signalled, or exited some other way. Signal handlers use only write(). */
+static char exit_prefix[2][64]; /* [0] off, [1] on the main thread; built ahead of time */
+static void write_exit_line(const char *text) {
+    if (!diagnostics) return;
+    int fd = fileno(diagnostic_stream);
+    const char *prefix = exit_prefix[pthread_main_np() != 0];
+    (void)!write(fd, prefix, strlen(prefix));
+    (void)!write(fd, text, strlen(text));
+    (void)!write(fd, "\n", 1);
+}
+static void log_process_exit(void) { write_exit_line("process exiting"); }
+static void log_fatal_signal(int sig) {
+    write_exit_line(sig == SIGTERM ? "terminated by SIGTERM (another process ended the app)" :
+                    sig == SIGHUP  ? "terminated by SIGHUP (its terminal or session closed)" :
+                    sig == SIGINT  ? "terminated by SIGINT (Control-C)" :
+                                     "terminated by a fatal signal (crash)");
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+static void install_exit_logging(void) {
+    static int installed;
+    if (!diagnostics || installed) return;
+    installed = 1;
+    for (int main_thread = 0; main_thread < 2; ++main_thread)
+        snprintf(exit_prefix[main_thread], sizeof(exit_prefix[0]),
+                 "[EditorLean pid=%d main-thread=%d] exit: ", getpid(), main_thread);
+    atexit(log_process_exit);
+    int signals[] = {SIGTERM, SIGHUP, SIGINT, SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE};
+    for (size_t i = 0; i < sizeof(signals)/sizeof(*signals); ++i) signal(signals[i], log_fatal_signal);
+}
+lean_object *editor_log_event(b_lean_obj_arg message) {
+    trace_startup(lean_string_cstr(message));
+    return lean_io_result_mk_ok(lean_box(0));
 }
 /* Lean 4.35 normally moves main onto a large-stack worker. AppKit/Tk must
    instead run on the OS main thread. Set Lean's supported switch before its
@@ -129,6 +166,7 @@ lean_object *editor_tk_init(uint8_t gui) {
     trace_startup("configured native noninteractive startup (no Wish console)");
     if (Tcl_Init(interp) != TCL_OK) return result(TCL_ERROR);
     trace_startup("Tcl initialized");
+    install_exit_logging();
     Tcl_CreateObjCommand2(interp,"editor",event_callback,NULL,NULL);
     if (gui) {
         trace_startup("initializing macOS Tk");
