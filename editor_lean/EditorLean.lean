@@ -18,6 +18,33 @@ def trim (s : String) : String := s.trimAscii.toString
 def spaces (n : Nat) : String := String.ofList (List.replicate n ' ')
 def join (xs : List String) (sep := "\n") : String := String.intercalate sep xs
 def truth (s : String) : Bool := s == "1" || s == "true"
+/- Platform differences are chosen at compile time for the native target. -/
+def onMac : Bool := System.Platform.isOSX
+/-- Preferred editor fonts on X11, first installed wins. Tk does not apply
+    fontconfig's alias preferences, so "Monospace" alone can resolve to a
+    Courier clone (e.g. Nimbus Mono PS) even when better faces exist. -/
+def x11MonoFamilies : List String :=
+  ["Adwaita Mono","DejaVu Sans Mono","Noto Sans Mono","Liberation Mono","Ubuntu Mono","Cascadia Mono"]
+initialize monoFamilyCache : IO.Ref (Option String) ← IO.mkRef none
+def monoFamily : IO String := do
+  if onMac then return "Menlo"
+  if let some family := (← monoFamilyCache.get) then return family
+  let installed ← words (← tk #["font","families"])
+  let family := (x11MonoFamilies.find? installed.contains).getD "Monospace"
+  monoFamilyCache.set (some family)
+  return family
+/-- Tk font description; the family is braced so multi-word names parse. -/
+def monoFont (size : Nat) : IO String := return "{" ++ (← monoFamily) ++ "} " ++ toString size
+/-- Read the clipboard or a selection. X11 Tk defaults to the legacy Latin-1
+    STRING target, which garbles non-ASCII text copied from Wayland/GTK/Qt
+    apps; request UTF8_STRING first and fall back for owners without it. -/
+def selectionGet (args : Array String) : IO String := do
+  if onMac then return ← tk args
+  try tk (args ++ #["-type","UTF8_STRING"]) catch _ => tk args
+/-- Modifiers that trigger editor shortcuts. Tk's Command modifier is the
+    macOS Command key only on aqua; on X11 it is an unrelated modifier bit. -/
+def shortcutModifiers : List String := if onMac then ["Control","Command"] else ["Control"]
+def accelLabel (label : String) : String := if onMac then label else label.replace "Cmd" "Ctrl"
 def number (s : String) : Nat := s.toNat?.getD 0
 def charSlice (s : String) (a b : Nat) : String := String.ofList ((s.toList.drop a).take (b-a))
 def leading (s : String) : String := String.ofList (s.toList.takeWhile (fun c => c == ' ' || c == '\t'))
@@ -292,7 +319,7 @@ def focusPane (id pane : String) : IO Unit := do
   cmd #[pane,"configure","-yscrollcommand",id++".frame.v set","-xscrollcommand",id++".frame.h set"]
 
 def clipboard (id op : String) : IO Unit := do
-  if op == "paste" then insertText id (← tk #["clipboard","get"])
+  if op == "paste" then insertText id (← selectionGet #["clipboard","get"])
   else
     let value ← selected id
     if value != "" then
@@ -364,8 +391,9 @@ def findDialog (id : String) (backwards := false) (replaceMode := false) : IO Un
   cmd #["label",p++".feedback","-textvariable",id++"_feedback","-anchor","w"]
   cmd #["grid",p++".feedback","-row","3","-columnspan","2","-sticky","ew","-padx","8","-pady","6"]
   bindAction p "<Return>" id #[if replaceMode then "replace" else "find",if backwards then "1" else "0"]
-  for key in ["<Escape>","<Command-w>","<Control-w>"] do bindAction p key id #["closefind"]
-  for modifier in ["Control","Command"] do
+  bindAction p "<Escape>" id #["closefind"]
+  for modifier in shortcutModifiers do
+    bindAction p s!"<{modifier}-w>" id #["closefind"]
     bindAction p s!"<{modifier}-g>" id #["find","0"]
     bindAction p s!"<{modifier}-Shift-G>" id #["find","1"]
   cmd #[p++".query","selection","range","0","end"]
@@ -752,7 +780,7 @@ def installBindings (id pane : String) : IO Unit := do
   for (key,args) in shortcuts do
     let pattern := if ["Copy","Cut","Paste"].contains key then "<<"++key++">>" else "<"++key++">"
     bindAction tag pattern id args
-    if (key.splitOn "Control-").length > 1 then
+    if onMac && (key.splitOn "Control-").length > 1 then
       bindAction tag ("<"++key.replace "Control-" "Command-"++">") id args
   cmd #["bind",pane,"<FocusIn>",← actionScript id #["focus",pane]]
   cmd #["bind",tag,"<KeyPress>","::editorKey "++id++" %A %s"]
@@ -797,7 +825,7 @@ def newWindow (doc : Document := {}) : IO String := do
   cmd #["frame",id++".frame"]; cmd #["pack",id++".frame","-fill","both","-expand","1"]
   cmd #["grid","rowconfigure",id++".frame","0","-weight","1"]
   cmd #["grid","columnconfigure",id++".frame","0","-weight","1"]
-  cmd #["text",pane,"-undo","1","-maxundo","-1","-wrap","none","-font","Menlo 13","-background","#fffff4",
+  cmd #["text",pane,"-undo","1","-maxundo","-1","-wrap","none","-font",← monoFont 13,"-background","#fffff4",
     "-foreground","#171717","-insertbackground","#171717","-exportselection","0","-selectbackground","#9ac7ef",
     "-selectforeground","#171717","-inactiveselectbackground","#9ac7ef","-padx","8","-pady","6"]
   cmd #["grid",pane,"-row","0","-column","0","-sticky","nsew"]
@@ -811,7 +839,7 @@ def newWindow (doc : Document := {}) : IO String := do
     let m := id++".menu."++caption.toLower
     cmd #["menu",m,"-tearoff","0"]; cmd #[id++".menu","add","cascade","-label",caption,"-menu",m]
     for (label,args,accelerator) in items do
-      cmd #[m,"add","command","-label",label,"-accelerator",accelerator,"-command",← actionScript id args]
+      cmd #[m,"add","command","-label",label,"-accelerator",accelLabel accelerator,"-command",← actionScript id args]
   windows.modify (·.push {id,pane,panes:=#[pane]})
   installBindings id pane
   focusPane id pane
@@ -842,7 +870,7 @@ def splitPane (id : String) : IO Unit := do
   let w ← getWindow id
   serial.modify (·+1)
   let pane := id++s!".frame.p{← serial.get}"
-  textCmd id #["peer","create",pane,"-font",s!"Menlo {w.font}","-background","#fffff4","-foreground","#171717",
+  textCmd id #["peer","create",pane,"-font",← monoFont w.font,"-background","#fffff4","-foreground","#171717",
     "-insertbackground","#171717","-selectbackground","#9ac7ef","-selectforeground","#171717",
     "-inactiveselectbackground","#9ac7ef","-exportselection","0","-wrap",← textCall id #["cget","-wrap"],"-padx","8","-pady","6"]
   change id fun c => {c with pane,panes:=c.panes.push pane}
@@ -925,8 +953,13 @@ def printText (id : String) : IO Unit := do
   handle.flush
   let html := path.toString++".html"
   IO.FS.rename path html
-  discard <| IO.Process.output {cmd:="/usr/bin/open",args:=#[html]}
-  alert id "Print" "The print preview opened in your browser. Use Command-P there to print."
+  if onMac then discard <| IO.Process.output {cmd:="/usr/bin/open",args:=#[html]}
+  else
+    -- xdg-open may hand the file to a browser that inherits its pipes, so
+    -- detach completely instead of collecting output; reap it in the background.
+    let child ← IO.Process.spawn {cmd:="xdg-open",args:=#[html],stdin:=.null,stdout:=.null,stderr:=.null}
+    discard <| IO.asTask child.wait .dedicated
+  alert id "Print" s!"The print preview opened in your browser. Use {if onMac then "Command-P" else "Ctrl+P"} there to print."
 
 def dispatch (id action : String) (args : Array String) : IO Unit := do
   let a := args[0]?.getD ""
@@ -956,10 +989,10 @@ def dispatch (id action : String) (args : Array String) : IO Unit := do
   | "delete_span" => deleteSpan id a
   | "move_key" => moveCursor id a (truth b) (truth (args[2]?.getD "")) (truth (args[3]?.getD ""))
   | "clipboard" => clipboard id a
-  | "paste_column" => pasteColumn id (← tk #["clipboard","get"])
+  | "paste_column" => pasteColumn id (← selectionGet #["clipboard","get"])
   | "primary_to_cursor" =>
     let mut value ← selected id
-    if value == "" then value ← tk #["selection","get","-selection","PRIMARY"]
+    if value == "" then value ← selectionGet #["selection","get","-selection","PRIMARY"]
     if truth a then
       for (first,last) in (← ranges id).reverse do textCmd id #["delete",first,last]
     deselect id
@@ -1057,7 +1090,7 @@ def dispatch (id action : String) (args : Array String) : IO Unit := do
   | "change_font_size" =>
     let size := max 6 (min 48 (Int.ofNat w.font + a.toInt?.getD 1)).toNat
     change id fun c => {c with font:=size}
-    for pane in w.panes do cmd #[pane,"configure","-font",s!"Menlo {size}"]
+    for pane in w.panes do cmd #[pane,"configure","-font",← monoFont size]
   | "split_pane" => splitPane id
   | "close_pane" => closePane id
   | "switch_document" =>
@@ -1105,9 +1138,9 @@ def dispatch (id action : String) (args : Array String) : IO Unit := do
   | "activate_menu" => cmd #["tk_popup",id++".menu.file",← tk #["winfo","rootx",id],← tk #["winfo","rooty",id],"0"]
   | "shortcut_help" =>
     let help := join (shortcuts.toList.map fun (key,values) => key++"    "++values[0]!)
-    let target ← newWindow {text:="EditorLean Keyboard Shortcuts\n\nControl shortcuts also have Command aliases on macOS.\n\n"++help}
+    let target ← newWindow {text:="EditorLean Keyboard Shortcuts\n\n"++(if onMac then "Control shortcuts also have Command aliases on macOS.\n\n" else "")++help}
     cmd #["wm","title",target,"Keyboard Shortcuts — EditorLean"]
-  | "about" => alert id "About EditorLean" "EditorLean 1.0.4\nNEdit-style editor written in Lean 4.\nCompiled to C with lean -c, then to native ARM64 with leanc.\nTcl/Tk supplies the desktop widgets."
+  | "about" => alert id "About EditorLean" "EditorLean 1.0.4\nNEdit-style editor written in Lean 4.\nCompiled to C with lean -c, then to native code with leanc.\nTcl/Tk supplies the desktop widgets."
   | _ => throw <| IO.userError ("Unknown editor action: "++action)
 
 initialize callbackTest : IO.Ref (Array String) ← IO.mkRef #[]
@@ -1141,14 +1174,14 @@ def expectFailure (name : String) (action : IO Unit) : IO Unit := do
   check name failed
 
 def selfTests : IO Unit := do
-  check "native entry point stays on the macOS main thread" (← isMainThread)
+  check "native entry point stays on the OS main thread" (← isMainThread)
   let worker ← IO.asTask (tkInit true) .dedicated
   let rejected := match worker.get with
     | .error e => (toString e).startsWith "EditorLean must initialize"
     | .ok _ => false
-  check "GUI initialization rejects worker threads before entering AppKit" rejected
+  check "GUI initialization rejects worker threads before entering the GUI toolkit" rejected
   tkInit false
-  check "native startup disables the Finder-only Wish console path" (← startupConfigured)
+  check "native startup disables the interactive Wish console path" (← startupConfigured)
   check "native interpreter is noninteractive" ((← tk #["set","tcl_interactive"]) == "0")
   check "native interpreter has no Tcl command-line arguments" ((← tk #["set","argc"]) == "0" && (← tk #["set","argv"]) == "")
   let sample := "α😀漢字\n\"quotes\" {braces} [not a command] $variable ; back\\slash\u0000end"
@@ -1210,14 +1243,14 @@ def selfTests : IO Unit := do
     expectFailure "invalid destination does not damage original" (atomicWrite (path++"/missing") "bad".toUTF8)
     check "failed save preserves bytes" ((← IO.FS.readFile path) == "new file")
     let link := path++"-symlink"
-    discard <| IO.Process.output {cmd:="/bin/ln",args:=#["-s",path,link]}
+    discard <| IO.Process.output {cmd:="ln",args:=#["-s",path,link]}
     try
       let doc ← openDocument link
       discard <| saveDocument doc "through link" link
       check "symlink save changes target" ((← IO.FS.readFile path) == "through link")
       check "symlink survives save" ((← tk #["file","type",link]) == "link")
     finally IO.FS.removeFile link
-    discard <| IO.Process.output {cmd:="/bin/chmod",args:=#["640",path]}
+    discard <| IO.Process.output {cmd:="chmod",args:=#["640",path]}
     let doc ← openDocument path
     discard <| saveDocument doc "mode kept" path
     check "file permissions survive save" ((← tk #["expr",← tk #["file","attributes",path,"-permissions"]]) == "416")
@@ -1237,10 +1270,12 @@ def selfTests : IO Unit := do
   IO.println s!"{← testsPassed.get} native Lean tests passed."
 
 def guiTests : IO Unit := do
-  check "GUI starts on the macOS main thread" (← isMainThread)
+  check "GUI starts on the OS main thread" (← isMainThread)
   tkInit true
   cmd #["wm","withdraw","."]
   let id ← newWindow
+  check "GUI editor font uses the chosen monospace family"
+    ((← tk #["font","actual",← tk #[(← getWindow id).pane,"cget","-font"],"-family"]) == (← monoFamily))
   -- Modal dialogs become failures in the automated GUI suite.
   script "rename tk_messageBox original_messageBox; proc tk_messageBox {args} {error $args}"
   script "set ::editorTestErrors {}; proc bgerror {message} {lappend ::editorTestErrors $message}"
@@ -1309,14 +1344,15 @@ def main (args : List String) : IO UInt32 := do
   if args.contains "--help" then
     IO.println "EditorLean 1.0.4 — native Lean text editor\nUsage: EditorLean [UTF-8 files…]\n       EditorLean --self-test\n       EditorLean --gui-self-test"
     return 0
-  if args.contains "--version" then IO.println "EditorLean 1.0.4 (Lean 4.35.0-rc3 → C → ARM64; Tcl/Tk 9.0.4)"; return 0
+  if args.contains "--version" then IO.println s!"EditorLean 1.0.4 (Lean 4.35.0-rc3 → C → {System.Platform.target}; Tcl/Tk 9.0.4)"; return 0
   if args.contains "--self-test" then selfTests; return 0
   if args.contains "--gui-self-test" then guiTests; return 0
   tkInit true
   cmd #["wm","withdraw","."]
   let id ← newWindow
-  script "proc ::tk::mac::Quit {} {editor __app quit_all}"
-  script "proc ::tk::mac::OpenDocument {args} {foreach path $args {editor __app open $path}}"
+  if onMac then
+    script "proc ::tk::mac::Quit {} {editor __app quit_all}"
+    script "proc ::tk::mac::OpenDocument {args} {foreach path $args {editor __app open $path}}"
   for path in args do
     if !path.startsWith "-psn_" then
       try discard <| openFile id path catch e => alert id "Cannot open file" (toString e)

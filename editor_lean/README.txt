@@ -2,7 +2,8 @@ EditorLean 1.0.4 — the NEdit-style editor rewritten in Lean
 ======================================================
 
 Open ../dist/EditorLean.app. The ZIP is ../dist/EditorLean-AppleSilicon.zip.
-This build is for Apple silicon and macOS 14 or later. Python, Lean, Homebrew,
+This build is for Apple silicon and macOS 14 or later; see LINUX PORT below
+for the x86_64 Linux build. Python, Lean, Homebrew,
 and an internet connection are not required to RUN the packaged app.
 The original editor.py and Editor.app have been retained separately.
 
@@ -83,7 +84,7 @@ existing Save As destination. Files are staged beside the destination before
 atomic replacement. The app checks open files for external changes periodically.
 Print opens a local HTML preview in your browser, where Command-P prints it.
 
-BUILD (from the parent project directory)
+BUILD ON macOS (from the parent project directory)
 
   python3 editor_lean/build.py
 
@@ -129,6 +130,69 @@ direct GUI initialization aborts in macOS application registration even on the
 main thread. The corrected thread placement is verified independently by the
 native tests. The user confirmed direct desktop launch through the diagnostic
 launcher; normal Finder activation and the full GUI test suite remain unverified.
+
+LINUX PORT
+
+The same sources also build for x86_64 Linux. Nothing is forked: the Lean code
+selects platform behavior with System.Platform.isOSX, bridge.c guards its
+macOS-only calls with __APPLE__, and build.py chooses its packaging path from
+sys.platform. On Linux:
+
+- Shortcuts are Control-only and menus show Ctrl+ labels. Tk's Command modifier
+  on X11 is an unrelated modifier bit, so Command aliases are bound only on macOS.
+- The editor font is the first installed of Adwaita Mono, DejaVu Sans Mono,
+  Noto Sans Mono, Liberation Mono, Ubuntu Mono, Cascadia Mono, else Monospace.
+  Tk does not follow fontconfig's alias preferences, so plain "Monospace" can
+  resolve to a Courier clone.
+- Clipboard and PRIMARY reads request UTF8_STRING first. X11 Tk otherwise uses
+  the Latin-1 STRING target and garbles non-ASCII text from GTK/Qt/Wayland apps.
+- Print preview opens with xdg-open, detached from the editor.
+- The ::tk::mac Quit/OpenDocument hooks are installed only on macOS; on Linux
+  files are opened from the command line (the .desktop file passes %F).
+- The bridge finds its main thread by gettid() == getpid(), its executable
+  through /proc/self/exe, and its Tcl/Tk scripts in bin/../share/editorlean.
+
+Tk 9.0.4 has no Wayland backend. On Wayland desktops the editor runs through
+XWayland and needs the system libX11, libXft and fontconfig libraries. Under
+fractional display scaling XWayland windows may render blurred.
+
+BUILD ON LINUX (from the parent project directory)
+
+Most distributions ship only Tcl/Tk 8.6, so build Tcl 9.0.4 and Tk 9.0.4 from
+the official source tarballs into a local prefix, by default
+.editor-lean-build/tcltk-9.0.4:
+
+  (tcl9.0.4/unix) ./configure --prefix=PREFIX --enable-shared --disable-zipfs
+  (tk9.0.4/unix)  ./configure --prefix=PREFIX --enable-shared --disable-zipfs \
+                      --with-tcl=PREFIX/lib --enable-xft
+  make && make install   (in each)
+
+--disable-zipfs keeps the script libraries as plain directories that build.py
+can bundle. Then:
+
+  python3 editor_lean/build.py [--tk-bundle PREFIX]
+
+build.py compiles with the toolchain's leanc using the system C compiler
+(LEAN_CC=cc), since the toolchain's clang has no C library headers on Linux.
+The Lean runtime, GMP and libuv are linked statically from the toolchain.
+The result is a relocatable tree dist/EditorLean/ (bin/, bundled Tcl/Tk in lib/
+with runpath $ORIGIN/../lib, scripts in share/editorlean/, a .desktop file,
+licenses and diagnose-editorlean.sh) and dist/EditorLean-linux-x86_64.tar.gz.
+The diagnostic launcher logs startup stages to
+${XDG_STATE_HOME:-~/.local/state}/editorlean/EditorLean-startup.log.
+
+Linux tests:
+
+  dist/EditorLean/bin/EditorLean --self-test
+  dist/EditorLean/bin/EditorLean --gui-self-test
+
+On Arch Linux with GNOME on Wayland (XWayland), 64 native tests and 20 GUI
+tests passed, including a GUI check that the chosen monospace family is applied.
+The macOS build has not been rebuilt or retested since the Linux port; its
+code paths are kept behind platform checks but remain unverified on a Mac.
+
+The proof record verification.json omits the host platform, so running
+check_proofs.py on either system yields the same record for the same sources.
 
 SOURCE REFERENCES
 

@@ -1,5 +1,5 @@
 {
-  "toolchain": "Lean (version 4.35.0-rc3, arm64-apple-darwin24.6.0, commit 470d5ce1400764999581fd26d5d72b00d990b0f4, Release)",
+  "toolchain": "Lean (version 4.35.0-rc3, commit 470d5ce1400764999581fd26d5d72b00d990b0f4, Release)",
   "theorem_count": 21,
   "theorems": [
     "unchanged_bytes",
@@ -30,7 +30,7 @@
     "propext"
   ],
   "sha256": {
-    "EditorLean.lean": "3a0ef97b8b9e43e78dbdbd383aa635ab74cca6f971dd5e8a49ab5fb82a73bc3a",
+    "EditorLean.lean": "8fdc0f64723d2eba393017607e2a2c2dbf4c632c6352784ea04cacc5b6605973",
     "EditorLeanProofs.lean": "48b99990286bec6b11f4014cf81be098f0b90b4e1ade2f1d4f62a5b9997202b4"
   }
 }

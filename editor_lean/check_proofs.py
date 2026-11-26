@@ -32,7 +32,10 @@ def main():
     for name, axioms in entries:
         found = {a.strip() for a in axioms.split(',') if a.strip()}
         assert found <= permitted, (name, found - permitted)
-    evidence = {'toolchain': version, 'theorem_count': len(names), 'theorems': names,
+    # Proof checking is platform-independent; omit the host triple so macOS and
+    # Linux runs of the same toolchain produce an identical record.
+    toolchain = re.sub(r'^(Lean \(version [^,]+), [^,]+, (commit )', r'\1, \2', version)
+    evidence = {'toolchain': toolchain, 'theorem_count': len(names), 'theorems': names,
                 'axioms': sorted(permitted), 'sha256': {name: hashlib.sha256((SOURCE/name).read_bytes()).hexdigest()
                     for name in ['EditorLean.lean','EditorLeanProofs.lean']}}
     (SOURCE / 'verification.log').write_text(version + '\n' + audit + f'\nPASS: {len(names)} universal theorems checked.\n')
