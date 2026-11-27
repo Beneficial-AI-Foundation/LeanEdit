@@ -1,0 +1,11 @@
+name = "editorlean"
+defaultTargets = ["EditorLean", "EditorLeanProofs"]
+
+# Lake project used only so VeriLib can atomize and certify the sources.
+# The application itself is still built by build.py.
+
+[[lean_lib]]
+name = "EditorLean"
+
+[[lean_lib]]
+name = "EditorLeanProofs"

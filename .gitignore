@@ -17,3 +17,4 @@ __pycache__/
 *.toc
 *.fdb_latexmk
 *.fls
+/editor_lean/.lake/
