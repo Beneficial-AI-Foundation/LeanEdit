@@ -1,0 +1,64 @@
+name: VeriStore release
+
+# Asks VeriLib to certify this commit and VeriStore to build it for the
+# platforms in veriapps.toml. Nothing is built on GitHub: this job only calls
+# the VeriLib API until the release is accepted. Building, signing and the
+# on-chain certificate all happen on VeriStore/VeriLib machines.
+#
+# Settings (repository → Settings → Secrets and variables → Actions):
+#   vars.VERILIB_URL       e.g. http://ec2-3-23-60-0.us-east-2.compute.amazonaws.com (dev)
+#   vars.VERILIB_REPO_ID   the repository's id on that VeriLib instance
+#   secrets.VERILIB_API_KEY  API key of a repo owner/editor (certifier for certificates)
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veristore-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VERILIB_URL: ${{ vars.VERILIB_URL }}
+      VERILIB_REPO_ID: ${{ vars.VERILIB_REPO_ID }}
+      VERILIB_API_KEY: ${{ secrets.VERILIB_API_KEY }}
+      COMMIT: ${{ github.sha }}
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+    steps:
+      - name: Request the release from VeriLib
+        run: |
+          set -euo pipefail
+          test -n "$VERILIB_URL" && test -n "$VERILIB_REPO_ID" && test -n "$VERILIB_API_KEY" \
+            || { echo "::error::VERILIB_URL, VERILIB_REPO_ID and VERILIB_API_KEY must be set"; exit 1; }
+          body=$(jq -n --arg c "$COMMIT" --arg t "$TAG" '{commit: $c, tag: $t}')
+          api="$VERILIB_URL/v2/repo/$VERILIB_REPO_ID/releases"
+          state=new
+          for attempt in $(seq 1 100); do
+            resp=$(curl -sS --fail-with-body -X POST "$api" \
+              -H "Authorization: ApiKey $VERILIB_API_KEY" \
+              -H 'Content-Type: application/json' -H 'Accept: application/json' -d "$body")
+            state=$(jq -r '.data.state' <<<"$resp")
+            echo "$(date -u +%H:%M:%S) state=$state $(jq -r '.data.history[-1].message // ""' <<<"$resp")"
+            case "$state" in
+              requested) break ;;
+              atomize_failed) echo "::error::VeriLib could not atomize $COMMIT"; exit 1 ;;
+            esac
+            sleep 60
+          done
+          test "$state" = requested || { echo "::error::release not accepted in time (state=$state)"; exit 1; }
+          {
+            echo "### VeriStore release requested"
+            echo
+            echo "Commit \`$COMMIT\`${TAG:+, tag \`$TAG\`}."
+            echo "Certificate and builds continue on VeriLib/VeriStore machines."
+            echo
+            echo "Status: $VERILIB_URL/v2/repo/$VERILIB_REPO_ID/releases/$COMMIT"
+          } >> "$GITHUB_STEP_SUMMARY"
