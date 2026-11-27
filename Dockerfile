@@ -15,7 +15,7 @@
 # Versions the sources expect: Lean 4.35.0-rc3, Tcl 9.0.4, Tk 9.0.4, Debian 12.
 #
 # Stages: `toolchain` holds Lean and Tcl/Tk but no EditorLean source; the last
-# stage builds EditorLean on top of it. VeriStore builds `--target toolchain`,
+# stage builds EditorLean on top of it. VeriLib builds `--target toolchain`,
 # publishes that image by digest, and runs build.py in it on a git checkout
 # (see veriapps.toml), so anyone can repeat the build in the same environment.
 

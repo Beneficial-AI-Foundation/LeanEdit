@@ -1,7 +1,8 @@
-# VeriStore release recipe for EditorLean.
+# Release recipe for EditorLean.
 #
-# VeriStore builds releases on its own machines from the tagged commit; nothing
-# is built on GitHub. Every input is pinned: the Lean version by
+# VeriLib certifies the tagged commit, then builds and signs the release on its
+# own machines; nothing is built on GitHub. VeriStore lists the app and links the
+# signed downloads. Every input is pinned: the Lean version by
 # editor_lean/lean-toolchain, the build environment by the base image digest
 # and the SHA-256 of each source archive below.
 schema = 1
@@ -22,7 +23,7 @@ workdir = "/src"               # the checkout is copied here (without .git)
 check = "cp editor_lean/verification.json /tmp/recorded.json && EDITORLEAN_LEAN=/opt/lean/bin/lean python3 editor_lean/check_proofs.py && cmp /tmp/recorded.json editor_lean/verification.json"
 # Builds dist/EditorLean and runs the native self-tests.
 command = "python3 editor_lean/build.py --toolchain /opt/lean --tk-bundle /opt/tcltk"
-artifact = "dist/EditorLean"   # packed as EditorLean-<version>-linux-x86_64.tar.gz
+artifact = "dist/EditorLean"   # packed as EditorLean-<version>-linux-x86_64.tar.gz by VeriLib
 binary = "bin/EditorLean"      # main executable inside the artifact
 
 [build.linux-x86_64.args]
