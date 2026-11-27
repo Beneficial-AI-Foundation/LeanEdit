@@ -1,0 +1,61 @@
+# How EditorLean is built for a release. VeriLib reads this file from the tagged commit,
+# builds the app on its own machines and signs the result; VeriApps lists the download.
+#
+# It says WHAT is needed, never where to get it: VeriLib fetches every input from its own
+# pinned list (Debian snapshot, Lean release, [[source]] archives by sha256) and checks each
+# hash. The repository and commit come from the release request (the tagged commit),
+# so neither is written here.
+#
+# How VeriLib runs it:
+#   - Builder image: Debian 12 from a pinned snapshot, plus [build].system_packages, plus the
+#     Lean toolchain [app].lean_toolchain unpacked at /opt/lean.
+#   - Each [[source]] is placed in /deps/<name>; the app (git archive of the commit) in /src.
+#   - [build].steps run in order in /src, offline, as a non-root user, with TZ=UTC,
+#     LC_ALL=C.UTF-8 and SOURCE_DATE_EPOCH = the commit's time.
+#   - Only /out/<[app].output> is kept. The build runs twice; the outputs must match.
+
+[app]
+slug = "leanedit"
+lean_toolchain = "leanprover/lean4:v4.35.0-rc3"   # must match editor_lean/lean-toolchain
+platform = "linux/amd64"
+output = "EditorLean-linux-x86_64.tar.gz"
+reproducible = true
+
+[build]
+# Debian 12 package names, installed from VeriLib's pinned snapshot.
+system_packages = ["gcc", "make", "python3", "libx11-dev", "libxft-dev"]
+
+steps = [
+  # Tcl/Tk 9.0.4 from the pinned sources below
+  "mkdir -p /build/tcl /build/tk",
+  "tar -xzf /deps/tcl/tcl9.0.4-src.tar.gz -C /build/tcl --strip-components=1",
+  "tar -xzf /deps/tk/tk9.0.4-src.tar.gz -C /build/tk --strip-components=1",
+  "rm -rf /build/tcl/pkgs/*",
+  "cd /build/tcl/unix && ./configure --prefix=/build/tcltk --disable-zipfs --without-system-libtommath && make && make install",
+  "cd /build/tk/unix && ./configure --prefix=/build/tcltk --with-tcl=/build/tcltk/lib --disable-zipfs --enable-xft && make && make install",
+  # The proofs must check and reproduce the committed record exactly
+  "cp editor_lean/verification.json /build/recorded.json && EDITORLEAN_LEAN=/opt/lean/bin/lean python3 editor_lean/check_proofs.py && cmp /build/recorded.json editor_lean/verification.json",
+  # Build dist/EditorLean (runs the native self-tests)
+  "python3 editor_lean/build.py --toolchain /opt/lean --tk-bundle /build/tcltk",
+  # Pack it byte for byte the same on every run: sorted names, the commit's time, owner 0, no gzip timestamp
+  "cd dist && tar --sort=name --mtime=@$SOURCE_DATE_EPOCH --owner=0 --group=0 --numeric-owner --mode=a+rX,u+w,go-w --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -cf - EditorLean | gzip -n -9 > /out/EditorLean-linux-x86_64.tar.gz",
+]
+
+# The Lean code the certificate is about.
+[lean]
+src_dir = "editor_lean"
+modules = ["EditorLean", "EditorLeanProofs", "VerificationExamples"]
+exe_root = "EditorLean"
+
+# Third-party sources: name, version and hash only. VeriLib never uses a URL from this file.
+[[source]]
+name = "tcl"
+version = "9.0.4"
+file = "tcl9.0.4-src.tar.gz"
+sha256 = "d0aed49230bc02a65c1e0229e65f34590a4b037ec40d546f32573b467f7551ea"
+
+[[source]]
+name = "tk"
+version = "9.0.4"
+file = "tk9.0.4-src.tar.gz"
+sha256 = "d7a146d2917eb8b5cc95276dbf0e3d03c7464d2b19c1675357857c989301dbb4"
