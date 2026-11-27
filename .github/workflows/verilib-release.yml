@@ -1,10 +1,10 @@
 name: VeriLib release
 
-# Asks VeriLib to certify this commit and to build and sign it for the
-# platforms in veriapps.toml. Nothing is built on GitHub: this job only calls
-# the VeriLib API until the release is accepted. The certificate, the on-chain
-# anchor, the build and the signature all happen on VeriLib machines; VeriStore
-# then lists the app and links the signed downloads.
+# Asks VeriLib to certify this commit and to build and sign it from the
+# veriapps-build.toml at this commit. Nothing is built on GitHub: this job only
+# calls the VeriLib API until the release is accepted. The certificate, the
+# on-chain anchor, the build and the signature all happen on VeriLib machines,
+# and VeriLib hosts the files; VeriApps lists the app and links them.
 #
 # Settings (repository → Settings → Secrets and variables → Actions):
 #   vars.VERILIB_URL       e.g. http://ec2-3-23-60-0.us-east-2.compute.amazonaws.com (dev)
